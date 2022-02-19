@@ -7,7 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\PartialLoader\Library\PartialLoader.csproj" />
+    <ProjectReference Include="..\..\..\..\..\work\BTComRefactoring\src\PartialLoader\Library\PartialLoader.csproj" />
+    <ProjectReference Include="..\BigCatsDataContract\BigCatsDataContract.csproj" />
   </ItemGroup>
 
 </Project>

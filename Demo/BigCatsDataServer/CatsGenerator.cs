@@ -13,7 +13,7 @@ namespace BigCatsDataServer
             DateTimeOffset start = default(DateTimeOffset);
             for (int i = 0; i < count; i++)
             {
-                Cat result = new Cat { Name = $"{Cat}{i}" };
+                Cat result = new Cat { Name = $"{Cat}{i + 1}" };
                 if(delay > 0)
                 {
                     if(i == 0)
@@ -36,7 +36,7 @@ namespace BigCatsDataServer
                         delayFactor = (int)Math.Floor(delayFactor / elapsed.TotalMilliseconds * delay);
                     }
                 }
-                yield return result  
+                yield return await Task.Run(() => result);
             }
         }
 
