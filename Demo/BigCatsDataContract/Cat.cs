@@ -1,4 +1,4 @@
-﻿namespace BigCatsDataServer
+﻿namespace BigCatsDataContract
 {
     public class Cat
     {

@@ -20,10 +20,22 @@
                 <TextBlock Margin="10 0 10 0">Таймаут Http-клиента:</TextBlock>
                 <TextBox Width="100" Text="{Binding HttpTimeout}" HorizontalAlignment="Right"/>
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="10">
-                <Button Command="{Binding GetAllCommand}" Padding="10 0 10 0">Получить сразу всё</Button>
-                <TextBlock Margin="10 0 10 0" Text="{Binding Path=Elapsed}"/>
-            </StackPanel>
+            <Border BorderThickness="1" BorderBrush="Black" Margin="5 5 5 5">
+                <StackPanel Orientation="Horizontal" Margin="10">
+                    <Button Command="{Binding GetAllCommand}" Padding="10 0 10 0">Получить сразу всё</Button>
+                    <TextBlock Margin="10 0 10 0" Text="{Binding Path=ElapsedAll}"/>
+                </StackPanel>
+            </Border>
+            <Border BorderThickness="1" BorderBrush="Black" Margin="5 5 5 5">
+                <StackPanel Orientation="Horizontal" Margin="10">
+                    <Button Command="{Binding GetChunksCommand}" Padding="10 0 10 0">Получить частями</Button>
+                    <TextBlock Margin="10 0 10 0">Таймаут:</TextBlock>
+                    <TextBox Width="100" Text="{Binding Timeout}" HorizontalAlignment="Right"/>
+                    <TextBlock Margin="10 0 10 0">Пейджинг:</TextBlock>
+                    <TextBox Width="100" Text="{Binding Paging}" HorizontalAlignment="Right"/>
+                    <TextBlock Margin="10 0 10 0" Text="{Binding Path=ElapsedChunks}"/>
+                </StackPanel>
+            </Border>
         </WrapPanel>
         <DataGrid AutoGenerateColumns="True" ItemsSource="{Binding Chunks}" DockPanel.Dock="Left" Height="Auto">
 

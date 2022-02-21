@@ -12,6 +12,6 @@ namespace BigCatsDataClient
         public int Count { get; internal set; }
         public TimeSpan Elapsed { get; internal set; }
         public int CountAll { get; internal set; }
-        public TimeSpan ElapsedAll { get; internal set; }
+        public TimeSpan ElapsedTotal { get; internal set; }
     }
 }

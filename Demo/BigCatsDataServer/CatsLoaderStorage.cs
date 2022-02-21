@@ -1,4 +1,5 @@
-﻿using Net.Leksi;
+﻿using BigCatsDataContract;
+using Net.Leksi;
 
 namespace BigCatsDataServer
 {
