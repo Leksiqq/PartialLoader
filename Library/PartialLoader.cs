@@ -1,12 +1,13 @@
 ﻿namespace Net.Leksi;
 using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 
 public class PartialLoader<T> : IPartialLoader<T>
 {
     private PartialLoaderOptions _options = null!;
     private ConcurrentQueue<T> _queue = new();
     private Task _loadTask = Task.CompletedTask;
-    private List<T> _list = new();
+    private Collection<T> _list = new();
     private List<T>? _chunk = null;
     private int _offset = 0;
     private ManualResetEventSlim _manualReset = new ManualResetEventSlim();
@@ -15,7 +16,7 @@ public class PartialLoader<T> : IPartialLoader<T>
 
     public PartialLoaderState State { get; private set; } = PartialLoaderState.New;
 
-    public List<T> Result
+    public Collection<T> Result
     {
         get
         {
@@ -50,7 +51,7 @@ public class PartialLoader<T> : IPartialLoader<T>
     }
 
 
-    public Task StartAsync(IAsyncEnumerable<T> data, PartialLoaderOptions options)
+    public Task StartAsync(IAsyncEnumerable<T> data, PartialLoaderOptions options, Collection<T> result = null)
     {
         _options = options;
         if (State is not PartialLoaderState.New)
@@ -232,7 +233,7 @@ public class PartialLoader<T> : IPartialLoader<T>
     private void Output(PartialLoaderState state)
     {
         State = state;
-        _chunk = _list.GetRange(_offset, _list.Count - _offset);
+        _chunk = _list.Skip(_offset).Take(_list.Count - _offset).ToList();
         _offset = _list.Count;
     }
 }

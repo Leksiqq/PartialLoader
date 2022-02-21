@@ -367,7 +367,7 @@ public class TestPartialLoader
                 if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
                 {
                     // 2), 3)
-                    Assert.That(chunkCount == paging);
+                    Assert.That(chunkCount <= paging);
                 } 
                 await _partialLoader.ContinueAsync();
             }
