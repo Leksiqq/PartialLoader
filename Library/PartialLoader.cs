@@ -69,6 +69,14 @@ public class PartialLoader<T> : IPartialLoader<T>
             return Task.CompletedTask;
         }
         State = PartialLoaderState.Started;
+        if(result is null)
+        {
+            _list = new();
+        } 
+        else
+        {
+            _list = result;
+        }
 
         _manualReset.Reset();
         _loadTask = Task.Run(async () =>
@@ -125,7 +133,7 @@ public class PartialLoader<T> : IPartialLoader<T>
             _cancellationTokenSource = null;
         }
         State = PartialLoaderState.New;
-        _list.Clear();
+        _list = null;
         _offset = 0;
         _cancelationTrace.Clear();
         _queue.Clear();
@@ -233,7 +241,10 @@ public class PartialLoader<T> : IPartialLoader<T>
     private void Output(PartialLoaderState state)
     {
         State = state;
-        _chunk = _list.Skip(_offset).Take(_list.Count - _offset).ToList();
-        _offset = _list.Count;
+        if(State == PartialLoaderState.Partial || State == PartialLoaderState.Full)
+        {
+            _chunk = _list.Skip(_offset).Take(_list.Count - _offset).ToList();
+            _offset = _list.Count;
+        }
     }
 }
