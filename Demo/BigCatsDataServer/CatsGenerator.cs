@@ -91,7 +91,7 @@ namespace BigCatsDataServer
         /// <returns></returns>
         public static async Task GetCatsChunks(HttpContext context, int count, int timeout, int paging, double delay)
         {
-            PartialLoader<Cat> partialLoader;
+            IPartialLoader<Cat> partialLoader;
             string key = null!;
 
             // Получаем хранилище через механизм внедрения зависимостей.
@@ -100,7 +100,7 @@ namespace BigCatsDataServer
             if (!context.Request.Headers.ContainsKey(Constants.PartialLoaderSessionKey))
             {
                 // Если это первый запрос, то создаём PartialLoader и стартуем генерацию.
-                partialLoader = new();
+                partialLoader = context.RequestServices.GetRequiredService<IPartialLoader<Cat>>();
                 await partialLoader.StartAsync(GenerateManyCats(count, delay), new PartialLoaderOptions { 
                     Timeout = TimeSpan.FromMilliseconds(timeout),
                     Paging = paging,

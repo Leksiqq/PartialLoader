@@ -1,8 +1,10 @@
 using BigCatsDataServer;
+using Net.Leksi;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<CatsLoaderStorage>();
+builder.Services.AddTransient(typeof(IPartialLoader<>), typeof(PartialLoader<>));
 
 var app = builder.Build();
 
