@@ -28,7 +28,7 @@ namespace BigCatsDataClient
         private bool _isDataLoading = false;
         private object _lockIsDataLoading = new();
         private int _count = 1000;
-        private int _delay = 0;
+        private double _delay = 0;
         private double _httpTimeout = 0;
         private TimeSpan _elapsedChunks;
         private TimeSpan _elapsedAll;
@@ -68,7 +68,7 @@ namespace BigCatsDataClient
         /// <summary xml:lang="ru">
         ///     Определяет какую приблизительную задержку в миллисекундах нужно симулировать при загрузке одной кошки.
         /// </summary>
-        public int Delay
+        public double Delay
         {
             get => _delay;
             set
@@ -243,7 +243,7 @@ namespace BigCatsDataClient
                 _client.BaseAddress = new Uri(Server);
 
                 // Передаём запрос серверу в стиле REST
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{ChunkslUri}/{Count}/{Timeout}/{Paging}/{Delay}");
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{ChunkslUri}/{Count}/{Timeout}/{Paging}/{Delay.ToString().Replace(',', '.')}");
                 HttpResponseMessage response = await _client.SendAsync(request).ConfigureAwait(false);
 
                 // Кошки приехали, ждём на случай, если таблицы не дочистились
@@ -379,7 +379,7 @@ namespace BigCatsDataClient
                 _client.BaseAddress = new Uri(Server);
 
                 // Передаём запрос серверу в стиле REST
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{AllUri}/{Count}/{Delay}");
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{AllUri}/{Count}/{Delay.ToString().Replace(',', '.')}");
                 HttpResponseMessage response = await _client.SendAsync(request).ConfigureAwait(false);
 
                 // Кошки приехали, ждём на случай, если таблицы не дочистились

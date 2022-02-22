@@ -341,6 +341,8 @@ public class TestPartialLoader
 
     private async Task RunGetCats(int timeoutMs, int paging, int delay, int count)
     {
+        const int PagingFora = 10;
+
         if (timeoutMs != -1 && delay == 0)
         {
             Assert.Fail("Если установлен таймаут, задержка должна быть больше 0!");
@@ -364,16 +366,16 @@ public class TestPartialLoader
             }
             if (_partialLoader.State == PartialLoaderState.Partial)
             {
-                if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
+                if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay - PagingFora))
                 {
                     // 2), 3)
-                    Assert.That(chunkCount <= paging);
+                    Assert.That(chunkCount == paging);
                 } 
                 await _partialLoader.ContinueAsync();
             }
             else
             {
-                if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
+                if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay - PagingFora))
                 {
                     // 2), 3)
                     Assert.That(chunkCount == (count % paging == 0 ? paging : count % paging));

@@ -1,13 +1,12 @@
 ﻿namespace Net.Leksi;
 using System.Collections.Concurrent;
-using System.Collections.ObjectModel;
 
 public class PartialLoader<T> : IPartialLoader<T>
 {
     private PartialLoaderOptions _options = null!;
     private ConcurrentQueue<T> _queue = new();
     private Task _loadTask = Task.CompletedTask;
-    private Collection<T> _list = new();
+    private List<T>? _list = null;
     private List<T>? _chunk = null;
     private int _offset = 0;
     private ManualResetEventSlim _manualReset = new ManualResetEventSlim();
@@ -16,7 +15,7 @@ public class PartialLoader<T> : IPartialLoader<T>
 
     public PartialLoaderState State { get; private set; } = PartialLoaderState.New;
 
-    public Collection<T> Result
+    public List<T> Result
     {
         get
         {
@@ -24,7 +23,7 @@ public class PartialLoader<T> : IPartialLoader<T>
             {
                 throw new InvalidOperationException($"Expected State: {PartialLoaderState.Full}, present: {State}");
             }
-            return _list;
+            return _list!;
         }
     }
 
@@ -36,7 +35,7 @@ public class PartialLoader<T> : IPartialLoader<T>
             {
                 throw new InvalidOperationException($"Expected State: {PartialLoaderState.Full} or {PartialLoaderState.Partial}, present: {State}");
             }
-            return _chunk ?? new();
+            return _chunk!;
         }
     }
 
@@ -51,7 +50,7 @@ public class PartialLoader<T> : IPartialLoader<T>
     }
 
 
-    public Task StartAsync(IAsyncEnumerable<T> data, PartialLoaderOptions options, Collection<T> result = null)
+    public Task StartAsync(IAsyncEnumerable<T> data, PartialLoaderOptions options)
     {
         _options = options;
         if (State is not PartialLoaderState.New)
@@ -69,14 +68,7 @@ public class PartialLoader<T> : IPartialLoader<T>
             return Task.CompletedTask;
         }
         State = PartialLoaderState.Started;
-        if(result is null)
-        {
-            _list = new();
-        } 
-        else
-        {
-            _list = result;
-        }
+        _list = new();
 
         _manualReset.Reset();
         _loadTask = Task.Run(async () =>
@@ -243,7 +235,7 @@ public class PartialLoader<T> : IPartialLoader<T>
         State = state;
         if(State == PartialLoaderState.Partial || State == PartialLoaderState.Full)
         {
-            _chunk = _list.Skip(_offset).Take(_list.Count - _offset).ToList();
+            _chunk = _list!.GetRange(_offset, _list.Count - _offset);
             _offset = _list.Count;
         }
     }

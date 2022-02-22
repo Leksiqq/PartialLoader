@@ -16,10 +16,13 @@ namespace BigCatsDataServer
        /// <param name="count">Количество кошек, которое хотим получить.</param>
        /// <param name="delay">Время в миллисекундах, требуемое для генерации одной кошки.</param>
        /// <returns></returns>
-        public static async IAsyncEnumerable<Cat> GenerateManyCats(int count, int delay)
+        public static async IAsyncEnumerable<Cat> GenerateManyCats(int count, double delay)
         {
-            int delayFactor = 10000;
-            bool isDelayFactorCalculated = false;
+            const int probeDelayFactor = 10000;
+            const int probeCyclesFactor = 100;
+
+            double delayLoopPeriod = probeDelayFactor * delay;
+            int cyclesCount = probeCyclesFactor * (delay > 0 ? (int)Math.Max(1, Math.Ceiling(1 / delay)) : 1);
             Random random = new Random();
 
             DateTimeOffset start = default(DateTimeOffset);
@@ -29,28 +32,18 @@ namespace BigCatsDataServer
                 if(delay > 0)
                 {
                     // Если задали ненулевой delay, имитируем бурную деятельность продолжительностью примерно delay миллисекунд.
-                    // Thread.Sleep(delay) или await Task.Delay(delay) использовать не получится, так как они дают минимальную задержку от ~200 ms
-                    // Здесь мы подгоняем delayFactor, чтобы получить более точную задержку.
-                    if (!isDelayFactorCalculated)
+                    if (i == 0)
                     { 
                         start = DateTimeOffset.Now;
                     }
-                    for(int j = 0; j < delay * delayFactor; j++)
+                    for(int j = 0; j < delayLoopPeriod; j++)
                     {
                         Math.Sin(random.NextDouble() * 2 * Math.PI);
                     }
-                    if (!isDelayFactorCalculated)
+                    if (i == cyclesCount - 1)
                     {
                         TimeSpan elapsed = DateTimeOffset.Now - start;
-                        if (elapsed.TotalMilliseconds < delay)
-                        {
-                            delayFactor *= (int)Math.Ceiling(delay / elapsed.TotalMilliseconds);
-                        }
-                        else
-                        {
-                            delayFactor = (int)Math.Floor(delayFactor / elapsed.TotalMilliseconds * delay);
-                            isDelayFactorCalculated = true;
-                        }
+                        delayLoopPeriod *= delay * cyclesCount / elapsed.TotalMilliseconds;
                     }
                 }
                 yield return await Task.Run(() => new Cat { Name = $"{CatNamePrefix}{i + 1}" });
@@ -64,7 +57,7 @@ namespace BigCatsDataServer
         /// <param name="count">Количество кошек, которое хотим получить.</param>
         /// <param name="delay">Время в миллисекундах, требуемое для генерации одной кошки.</param>
         /// <returns></returns>
-        public static async Task GetCats(HttpContext httpContext, int count, int delay)
+        public static async Task GetCats(HttpContext httpContext, int count, double delay)
         {
             List<Cat> cats = new();
             await foreach(Cat cat in GenerateManyCats(count, delay).ConfigureAwait(false))
@@ -96,7 +89,7 @@ namespace BigCatsDataServer
         /// <param name="paging">Фиксированный размер партии кошек, которая возвращается при условии timeout == -1.</param>
         /// <param name="delay">Время в миллисекундах, требуемое для генерации одной кошки.</param>
         /// <returns></returns>
-        public static async Task GetCatsChunks(HttpContext context, int count, int timeout, int paging, int delay)
+        public static async Task GetCatsChunks(HttpContext context, int count, int timeout, int paging, double delay)
         {
             PartialLoader<Cat> partialLoader;
             string key = null!;
