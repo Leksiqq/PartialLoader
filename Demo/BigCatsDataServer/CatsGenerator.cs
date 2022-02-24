@@ -29,24 +29,27 @@ namespace BigCatsDataServer
 
             for (int i = 0; i < count; i++)
             {
-                if(delay > 0)
+                yield return await Task.Run(() => 
                 {
-                    // Если задали ненулевой delay, имитируем бурную деятельность продолжительностью примерно delay миллисекунд.
-                    if (i == 0)
-                    { 
-                        start = DateTimeOffset.Now;
-                    }
-                    for(int j = 0; j < delayLoopPeriod; j++)
+                    if (delay > 0)
                     {
-                        Math.Sin(random.NextDouble() * 2 * Math.PI);
+                        // Если задали ненулевой delay, имитируем бурную деятельность продолжительностью примерно delay миллисекунд.
+                        if (i == 0)
+                        {
+                            start = DateTimeOffset.Now;
+                        }
+                        for (int j = 0; j < delayLoopPeriod; j++)
+                        {
+                            Math.Sin(random.NextDouble() * 2 * Math.PI);
+                        }
+                        if (i == cyclesCount - 1)
+                        {
+                            TimeSpan elapsed = DateTimeOffset.Now - start;
+                            delayLoopPeriod *= delay * cyclesCount / elapsed.TotalMilliseconds;
+                        }
                     }
-                    if (i == cyclesCount - 1)
-                    {
-                        TimeSpan elapsed = DateTimeOffset.Now - start;
-                        delayLoopPeriod *= delay * cyclesCount / elapsed.TotalMilliseconds;
-                    }
-                }
-                yield return await Task.Run(() => new Cat { Name = $"{CatNamePrefix}{i + 1}" });
+                    return new Cat { Name = $"{CatNamePrefix}{i + 1}" }; 
+                });
             }
         }
 
