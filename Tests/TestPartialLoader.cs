@@ -1,4 +1,7 @@
 namespace Net.Leksi;
+
+using BigCatsDataContract;
+using BigCatsDataServer;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -9,6 +12,8 @@ using System.Threading.Tasks;
 
 public class TestPartialLoader
 {
+    List<Cat> _catsList = new();
+
     /// <summary xml:lang="ru">
     /// Варианты неправильных последовательностей.
     /// </summary>
@@ -43,7 +48,6 @@ public class TestPartialLoader
         CancelFullState,
     }
 
-    private List<Cat> _catList = new();
     private PartialLoader<Cat> _partialLoader = new();
 
     [OneTimeSetUp]
@@ -70,9 +74,8 @@ public class TestPartialLoader
     ///<para>1) Если установлен timeoutMs и не установлен paging, то каждый Сhunk имеет размер от 1 до timeoutMs / delay.</para>
     ///<para>2) Если не установлен timeoutMs и установлен paging, то каждый Сhunk имеет размер paging, кроме последнего, который содержит то, 
     /// что осталось.</para>
-    ///<para>3) Если установлен timeoutMs и установлен paging и paging <= timeoutMs / delay, то каждый Сhunk имеет размер от 1 до paging.</para>
-    ///<para>4) Если установлен timeoutMs и установлен paging и paging > timeoutMs / delay, то каждый Сhunk имеет размер от 1 до timeoutMs / delay.</para>
-    ///<para>5) Также для всех случаях результирующий список котиков должен совпадать с полученным из всех порций и совпадать с исходным.</para>
+    ///<para>3) Если установлен timeoutMs и установлен paging, то каждый Сhunk имеет размер от 1 до paging.</para>
+    ///<para>4) Также для всех случаях результирующий список котиков должен совпадать с полученным из всех порций и совпадать с исходным.</para>
     /// </summary>
     ///<param  xml:lang="ru" name="timeoutMs">Значение таймаута - времени ожидания очередной порции (chunk) котиков в миллисекундах.</param>
     ///<param xml:lang="ru" name="paging">Значение пейджинга - желаемого размера очередной порции (chunk) котиков в штуках.</param>
@@ -256,12 +259,13 @@ public class TestPartialLoader
                     });
                     break;
             }
-            await _partialLoader.StartAsync(Data(delay, count), new PartialLoaderOptions
+            await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
             {
                 Timeout = TimeSpan.FromMilliseconds(timeoutMs),
                 Paging = paging,
                 CancellationToken = cancellationTokenSource.Token
             });
+            Console.WriteLine(_partialLoader.CancelationTrace);
             switch (testCancelationCase)
             {
                 case TestCancelationCase.CancelNewState:
@@ -322,10 +326,13 @@ public class TestPartialLoader
             }
             Assert.That(_partialLoader.State == PartialLoaderState.Canceled);
 
-            var ex = Assert.Throws<InvalidOperationException>(() => _partialLoader.StartAsync(Data(delay, count), new PartialLoaderOptions()).Wait());
+            var ex0 = Assert.Catch<AggregateException>(() => _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions()).Wait());
+            var ex = Assert.Throws<InvalidOperationException>(() => throw ex0!.InnerException!);
+
             Assert.That(ex!.Message, Is.EqualTo("Expected State: New, present: Canceled"));
 
-            ex = Assert.Throws<InvalidOperationException>(() => _partialLoader.ContinueAsync().Wait());
+            ex0 = Assert.Catch<AggregateException>(() => _partialLoader.ContinueAsync().Wait());
+            ex = Assert.Throws<InvalidOperationException>(() => throw ex0!.InnerException!);
             Assert.That(ex!.Message, Is.EqualTo("Expected State: Partial, present: Canceled"));
 
             List<Cat> cats = new List<Cat>();
@@ -341,41 +348,46 @@ public class TestPartialLoader
 
     private async Task RunGetCats(int timeoutMs, int paging, int delay, int count)
     {
-        const int PagingFora = 10;
-
         if (timeoutMs != -1 && delay == 0)
         {
             Assert.Fail("Если установлен таймаут, задержка должна быть больше 0!");
         }
         List<Cat> cats = new List<Cat>();
+
+        for(int i = _catsList.Count; i < count; i++)
+        {
+            _catsList.Add(new Cat { Name = $"{CatsGenerator.CatNamePrefix}{i + 1}" });
+        }
         
         _partialLoader.Reset();
 
-        await _partialLoader.StartAsync(Data(delay, count), new PartialLoaderOptions { 
+        await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions { 
             Timeout = TimeSpan.FromMilliseconds(timeoutMs),
             Paging = paging
         });
+
         while (true)
         {
             int chunkCount = _partialLoader.Chunk.Count;
             cats.AddRange(_partialLoader.Chunk);
+
             if (timeoutMs != -1 && (paging == 0 || paging > timeoutMs / delay))
             {
-                // 1), 4)
-                Assert.That(chunkCount > 0 && chunkCount <= timeoutMs / delay);
+                // 1), 3)
+                Assert.That(chunkCount > 0);
             }
             if (_partialLoader.State == PartialLoaderState.Partial)
             {
-                if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay - PagingFora))
+                if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
                 {
                     // 2), 3)
                     Assert.That(chunkCount == paging);
-                } 
+                }
                 await _partialLoader.ContinueAsync();
             }
             else
             {
-                if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay - PagingFora))
+                if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
                 {
                     // 2), 3)
                     Assert.That(chunkCount == (count % paging == 0 ? paging : count % paging));
@@ -383,9 +395,9 @@ public class TestPartialLoader
                 break;
             }
         }
-        //5)
-        Assert.That(cats.Count == _catList.Count && cats.Count == _partialLoader.Result.Count);
-        Assert.That(cats.Zip(_partialLoader.Result).Zip(_catList, (x, y) => x.First.Name == y.Name && x.Second.Name == y.Name).All(x => x));
+        //4)
+        Assert.That(cats.Count == count && cats.Count == _partialLoader.Result.Count);
+        Assert.That(cats.Zip(_partialLoader.Result).Zip(_catsList, (x, y) => x.First.Name == y.Name && x.Second.Name == y.Name).All(x => x));
     }
 
     private async Task RunWorkflow(TestWorkflowCase testWorkflowCase, int timeoutMs = -1, int paging = 4)
@@ -432,7 +444,7 @@ public class TestPartialLoader
                 auxTask = Task.Run(async () =>
                 {
                     await Task.Delay(timeoutMs / 2);
-                    await _partialLoader.StartAsync(Data(delay, count), new PartialLoaderOptions());
+                    await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
                 });
                 break;
             case TestWorkflowCase.ContinueStartedState:
@@ -457,7 +469,7 @@ public class TestPartialLoader
                 });
                 break;
         }
-        await _partialLoader.StartAsync(Data(delay, count), new PartialLoaderOptions
+        await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
         {
             Timeout = TimeSpan.FromMilliseconds(timeoutMs),
             Paging = paging
@@ -473,7 +485,7 @@ public class TestPartialLoader
                 switch(testWorkflowCase)
                 {
                     case TestWorkflowCase.StartPartialState:
-                        await _partialLoader.StartAsync(Data(delay, count), new PartialLoaderOptions());
+                        await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
                         break;
                     case TestWorkflowCase.ResultPartialState:
                         cats.AddRange(_partialLoader.Result);
@@ -489,7 +501,7 @@ public class TestPartialLoader
                         auxTask = Task.Run(async () =>
                         {
                             await Task.Delay(timeoutMs / 2);
-                            await _partialLoader.StartAsync(Data(delay, count), new PartialLoaderOptions());
+                            await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
                         });
                         break;
                     case TestWorkflowCase.ChunkContinuedState:
@@ -514,7 +526,7 @@ public class TestPartialLoader
                 switch(testWorkflowCase)
                 {
                     case TestWorkflowCase.StartFullState:
-                        await _partialLoader.StartAsync(Data(delay, count), new PartialLoaderOptions());
+                        await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
                         break;
                     case TestWorkflowCase.ContunueFullState:
                         await _partialLoader.ContinueAsync();
@@ -528,20 +540,5 @@ public class TestPartialLoader
             await auxTask;
         }
         Assert.Fail();
-    }
-    private async IAsyncEnumerable<Cat> Data(int delay, int count)
-    {
-        _catList.Clear();
-        DateTime catEpoch = DateTime.Now - TimeSpan.FromDays(2000);
-        for (int i = 0; i < count; i++)
-        {
-            if(delay > 0)
-            {
-                await Task.Delay(delay);
-            }
-            Cat result = new Cat { Name = $"Cat{i}", Birthday = catEpoch + TimeSpan.FromDays(i) };
-            _catList.Add(result);
-            yield return result;
-        }
     }
 }

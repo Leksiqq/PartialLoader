@@ -8,7 +8,9 @@ namespace BigCatsDataServer
     /// </summary>
     public class CatsGenerator
     {
-        private const string CatNamePrefix = "Кошка №";
+        public const string CatNamePrefix = "Кошка №";
+
+        private const long MilliSecondTicks = 10000L;
 
        /// <summary>
        ///  Параметризованный генератор кошек.
@@ -18,14 +20,7 @@ namespace BigCatsDataServer
        /// <returns></returns>
         public static async IAsyncEnumerable<Cat> GenerateManyCats(int count, double delay)
         {
-            const int probeDelayFactor = 10000;
-            const int probeCyclesFactor = 100;
-
-            double delayLoopPeriod = probeDelayFactor * delay;
-            int cyclesCount = probeCyclesFactor * (delay > 0 ? (int)Math.Max(1, Math.Ceiling(1 / delay)) : 1);
             Random random = new Random();
-
-            DateTimeOffset start = default(DateTimeOffset);
 
             for (int i = 0; i < count; i++)
             {
@@ -34,23 +29,21 @@ namespace BigCatsDataServer
                     if (delay > 0)
                     {
                         // Если задали ненулевой delay, имитируем бурную деятельность продолжительностью примерно delay миллисекунд.
-                        if (i == 0)
-                        {
-                            start = DateTimeOffset.Now;
-                        }
-                        for (int j = 0; j < delayLoopPeriod; j++)
+                        int j = 0;
+                        DateTimeOffset start = DateTimeOffset.Now;
+                        while (true)
                         {
                             Math.Sin(random.NextDouble() * 2 * Math.PI);
-                        }
-                        if (i == cyclesCount - 1)
-                        {
-                            TimeSpan elapsed = DateTimeOffset.Now - start;
-                            delayLoopPeriod *= delay * cyclesCount / elapsed.TotalMilliseconds;
+                            if ((DateTimeOffset.Now - start).Ticks >= delay * MilliSecondTicks)
+                            {
+                                break;
+                            }
                         }
                     }
                     return new Cat { Name = $"{CatNamePrefix}{i + 1}" }; 
                 });
             }
+            yield break;
         }
 
         /// <summary>

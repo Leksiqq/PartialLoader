@@ -50,7 +50,7 @@ public class PartialLoader<T> : IPartialLoader<T>
     }
 
 
-    public Task StartAsync(IAsyncEnumerable<T> data, PartialLoaderOptions options)
+    public async Task StartAsync(IAsyncEnumerable<T> data, PartialLoaderOptions options)
     {
         _options = options;
         if (State is not PartialLoaderState.New)
@@ -65,12 +65,13 @@ public class PartialLoader<T> : IPartialLoader<T>
                 _cancelationTrace.Add(1);
             }
             Output(PartialLoaderState.Canceled);
-            return Task.CompletedTask;
+            return;
         }
         State = PartialLoaderState.Started;
         _list = new();
 
         _manualReset.Reset();
+        
         _loadTask = Task.Run(async () =>
         {
             await foreach (T item in data.ConfigureAwait(options.ConfigureAwait))
@@ -99,17 +100,17 @@ public class PartialLoader<T> : IPartialLoader<T>
                 }
             }
         });
-        return ExecuteAsync();
+        await ExecuteAsync();
     }
 
-    public Task ContinueAsync()
+    public async Task ContinueAsync()
     {
         if (State != PartialLoaderState.Partial)
         {
             throw new InvalidOperationException($"Expected State: {PartialLoaderState.Partial}, present: {State}");
         }
         State = PartialLoaderState.Continued;
-        return ExecuteAsync();
+        await ExecuteAsync();
     }
 
     public void Reset()
@@ -131,103 +132,100 @@ public class PartialLoader<T> : IPartialLoader<T>
         _queue.Clear();
     }
 
-    private Task ExecuteAsync()
+    private async Task ExecuteAsync()
     {
-        return Task.Run(async () =>
-        {
-            DateTimeOffset start = DateTimeOffset.Now;
+        DateTimeOffset start = DateTimeOffset.Now;
             
-            while (!_loadTask.IsCompleted)
+        while (!_loadTask.IsCompleted)
+        {
+            TimeSpan limeLeft = _options.Timeout.TotalMilliseconds < 0 ?
+                TimeSpan.MaxValue : _options.Timeout - (DateTimeOffset.Now - start);
+            if (limeLeft == TimeSpan.MaxValue || limeLeft.TotalMilliseconds > 0)
             {
-                TimeSpan limeLeft = _options.Timeout.TotalMilliseconds < 0 ?
-                    TimeSpan.MaxValue : _options.Timeout - (DateTimeOffset.Now - start);
-                if (limeLeft == TimeSpan.MaxValue || limeLeft.TotalMilliseconds > 0)
+                try
                 {
-                    try
+                    if (limeLeft == TimeSpan.MaxValue)
                     {
-                        if (limeLeft == TimeSpan.MaxValue)
-                        {
-                            _manualReset.Wait(_cancellationTokenSource!.Token);
-                        }
-                        else
-                        {
-                            _manualReset.Wait(limeLeft, _cancellationTokenSource!.Token);
-                        }
+                        _manualReset.Wait(_cancellationTokenSource!.Token);
                     }
-                    catch(OperationCanceledException) 
+                    else
                     {
-                        await _loadTask.ConfigureAwait(_options.ConfigureAwait);
-                        lock (_cancelationTrace)
-                        {
-                            _cancelationTrace.Add(4);
-                        }
+                        _manualReset.Wait(limeLeft, _cancellationTokenSource!.Token);
                     }
-                    if (_cancellationTokenSource!.Token.IsCancellationRequested)
-                    {
-                        await _loadTask.ConfigureAwait(_options.ConfigureAwait);
-                        lock (_cancelationTrace)
-                        {
-                            _cancelationTrace.Add(5);
-                        }
-                        Output(PartialLoaderState.Canceled);
-                        return;
-                    }
-                    while (_queue.TryDequeue(out T? item))
-                    {
-                        _options.OnItem?.Invoke(item);
-                        _list.Add(item);
-                        if(_options.Paging > 0 && _list.Count - _offset == _options.Paging)
-                        {
-                            Output(PartialLoaderState.Partial);
-                            return;
-                        }
-                    }
-                } 
-                else
+                }
+                catch (OperationCanceledException) 
                 {
-                    if (_cancellationTokenSource!.Token.IsCancellationRequested)
+                    await _loadTask.ConfigureAwait(_options.ConfigureAwait);
+                    lock (_cancelationTrace)
                     {
-                        await _loadTask.ConfigureAwait(_options.ConfigureAwait);
-                        lock (_cancelationTrace)
-                        {
-                            _cancelationTrace.Add(6);
-                        }
-                        Output(PartialLoaderState.Canceled);
-                        return;
+                        _cancelationTrace.Add(4);
                     }
-                    Output(PartialLoaderState.Partial);
+                }
+                if (_cancellationTokenSource!.Token.IsCancellationRequested)
+                {
+                    await _loadTask.ConfigureAwait(_options.ConfigureAwait);
+                    lock (_cancelationTrace)
+                    {
+                        _cancelationTrace.Add(5);
+                    }
+                    Output(PartialLoaderState.Canceled);
                     return;
                 }
-                if (!_loadTask.IsCompleted)
+                while (_queue.TryDequeue(out T? item))
                 {
-                    _manualReset.Reset();
+                    _options.OnItem?.Invoke(item);
+                    _list.Add(item);
+                    if(_options.Paging > 0 && _list.Count - _offset == _options.Paging)
+                    {
+                        Output(PartialLoaderState.Partial);
+                        return;
+                    }
                 }
-            }
-            while (_queue.TryDequeue(out T? item))
+            } 
+            else
             {
-                _options.OnItem?.Invoke(item);
-                _list.Add(item);
-                if (_options.Paging > 0 && _list.Count - _offset == _options.Paging)
+                if (_cancellationTokenSource!.Token.IsCancellationRequested)
                 {
-                    Output(PartialLoaderState.Partial);
+                    await _loadTask.ConfigureAwait(_options.ConfigureAwait);
+                    lock (_cancelationTrace)
+                    {
+                        _cancelationTrace.Add(6);
+                    }
+                    Output(PartialLoaderState.Canceled);
                     return;
                 }
-            }
-            if (_cancellationTokenSource!.Token.IsCancellationRequested)
-            {
-                lock (_cancelationTrace)
-                {
-                    _cancelationTrace.Add(7);
-                }
-                Output(PartialLoaderState.Canceled);
+                Output(PartialLoaderState.Partial);
                 return;
             }
-            if (_loadTask.IsFaulted)
+            if (!_loadTask.IsCompleted)
             {
-                throw _loadTask.Exception!;
+                _manualReset.Reset();
             }
-            Output(PartialLoaderState.Full);
-        });
+        }
+        while (_queue.TryDequeue(out T? item))
+        {
+            _options.OnItem?.Invoke(item);
+            _list.Add(item);
+            if (_options.Paging > 0 && _list.Count - _offset == _options.Paging)
+            {
+                Output(PartialLoaderState.Partial);
+                return;
+            }
+        }
+        if (_cancellationTokenSource!.Token.IsCancellationRequested)
+        {
+            lock (_cancelationTrace)
+            {
+                _cancelationTrace.Add(7);
+            }
+            Output(PartialLoaderState.Canceled);
+            return;
+        }
+        if (_loadTask.IsFaulted)
+        {
+            throw _loadTask.Exception!;
+        }
+        Output(PartialLoaderState.Full);
     }
 
     private void Output(PartialLoaderState state)
