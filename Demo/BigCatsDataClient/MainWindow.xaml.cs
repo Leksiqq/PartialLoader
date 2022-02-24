@@ -22,8 +22,6 @@ namespace BigCatsDataClient
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private const string Server = "https://localhost:7209";
-        private const string AllUri = "/cats";
-        private const string ChunkslUri = "/catsChunks";
 
         private bool _isDataLoading = false;
         private object _lockIsDataLoading = new();
@@ -243,7 +241,7 @@ namespace BigCatsDataClient
                 _client.BaseAddress = new Uri(Server);
 
                 // Передаём запрос серверу в стиле REST
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{ChunkslUri}/{Count}/{Timeout}/{Paging}/{Delay.ToString().Replace(',', '.')}");
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{Constants.ChunkslUri}/{Count}/{Timeout}/{Paging}/{Delay.ToString().Replace(',', '.')}");
                 HttpResponseMessage response = await _client.SendAsync(request).ConfigureAwait(false);
 
                 // Кошки приехали, ждём на случай, если таблицы не дочистились
@@ -282,7 +280,7 @@ namespace BigCatsDataClient
                             // Если данные пришли не полностью, повторяем запрос. Можно без параметров, так как сервер подставит значения по умолчанию,
                             // но они всё равно не будут использоваться, так как мы передаём заголовок с идентификатором запроса, который сервер
                             // вернул нам с неполными данными.
-                            request = new HttpRequestMessage(HttpMethod.Get, $"{ChunkslUri}");
+                            request = new HttpRequestMessage(HttpMethod.Get, $"{Constants.ChunkslUri}");
                             request.Headers.Add(Constants.PartialLoaderSessionKey, response.Headers.GetValues(Constants.PartialLoaderSessionKey).First());
                             response = await _client.SendAsync(request).ConfigureAwait(false);
                         }
@@ -379,7 +377,7 @@ namespace BigCatsDataClient
                 _client.BaseAddress = new Uri(Server);
 
                 // Передаём запрос серверу в стиле REST
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{AllUri}/{Count}/{Delay.ToString().Replace(',', '.')}");
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{Constants.AllUri}/{Count}/{Delay.ToString().Replace(',', '.')}");
                 HttpResponseMessage response = await _client.SendAsync(request).ConfigureAwait(false);
 
                 // Кошки приехали, ждём на случай, если таблицы не дочистились
