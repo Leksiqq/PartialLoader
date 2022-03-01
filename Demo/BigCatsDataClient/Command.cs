@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Input;
 
 namespace BigCatsDataClient
@@ -28,6 +24,11 @@ namespace BigCatsDataClient
         public void Execute(object? parameter)
         {
             _execute.Invoke(parameter);
+        }
+
+        public void Touch()
+        {
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 }

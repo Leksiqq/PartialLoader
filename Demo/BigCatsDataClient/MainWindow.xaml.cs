@@ -43,8 +43,8 @@ namespace BigCatsDataClient
             set
             {
                 _isDataLoading = value;
-                OnPropertyChanged(nameof(GetAllCommand));
-                OnPropertyChanged(nameof(GetChunksCommand));
+                GetAllCommand.Touch();
+                GetChunksCommand.Touch();
             }
         }
 
@@ -174,12 +174,12 @@ namespace BigCatsDataClient
         /// <summary xml:lang="ru">
         ///     Команда для связи метода загрузки целиком с соответствующей кнопкой UI.
         /// </summary>
-        public ICommand GetAllCommand { get; init; }
+        public Command GetAllCommand { get; init; }
 
         /// <summary xml:lang="ru">
         ///     Команда для связи метода загрузки частями с соответствующей кнопкой UI.
         /// </summary>
-        public ICommand GetChunksCommand { get; init; }
+        public Command GetChunksCommand { get; init; }
 
         public MainWindow()
         {
