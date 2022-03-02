@@ -8,10 +8,5 @@ namespace BigCatsDataClient
     /// </summary>
     public partial class App : Application
     {
-        protected override void OnActivated(EventArgs e)
-        {
-            MainWindow.DataContext = MainWindow;
-            base.OnActivated(e);
-        }
     }
 }
