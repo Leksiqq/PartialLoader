@@ -6,6 +6,7 @@ public class PartialLoaderOptions
     public Action<object?>? OnItem { get; set; } = null;
     public int Paging { get; set; } = 0;
     public bool ConfigureAwait { get; set; } = false;
+    public bool StoreResult { get; set; } = false;
 
 
 }

@@ -82,13 +82,17 @@ public class TestPartialLoader
     ///<param xml:lang="ru" name="delay">Значение времени, необходимого для получения одного котика в миллисекундах.</param>
     ///<param xml:lang="ru" name="count">Общее количество котиков.</param>
     [Test]
-    [TestCase(100, 0, 10, 1001)]
-    [TestCase(-1, 4, 0, 1001)]
-    [TestCase(100, 4, 10, 1001)]
-    [TestCase(100, 11, 10, 1001)]
-    public void TestGetCats(int timeoutMs, int paging, int delay, int count)
+    [TestCase(100, 0, 10, 1001, false)]
+    [TestCase(-1, 4, 0, 1001, false)]
+    [TestCase(100, 4, 10, 1001, false)]
+    [TestCase(100, 11, 10, 1001, false)]
+    [TestCase(100, 0, 10, 1001, true)]
+    [TestCase(-1, 4, 0, 1001, true)]
+    [TestCase(100, 4, 10, 1001, true)]
+    [TestCase(100, 11, 10, 1001, true)]
+    public void TestGetCats(int timeoutMs, int paging, int delay, int count, bool storeResult)
     {
-        RunGetCats(timeoutMs, paging, delay, count).Wait();
+        RunGetCats(timeoutMs, paging, delay, count, storeResult).Wait();
     }
 
     /// <summary xml:lang="ru">
@@ -346,7 +350,7 @@ public class TestPartialLoader
         }
     }
 
-    private async Task RunGetCats(int timeoutMs, int paging, int delay, int count)
+    private async Task RunGetCats(int timeoutMs, int paging, int delay, int count, bool storeResult)
     {
         if (timeoutMs != -1 && delay == 0)
         {
@@ -363,7 +367,8 @@ public class TestPartialLoader
 
         await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions { 
             Timeout = TimeSpan.FromMilliseconds(timeoutMs),
-            Paging = paging
+            Paging = paging,
+            StoreResult = storeResult
         });
 
         while (true)
@@ -396,7 +401,7 @@ public class TestPartialLoader
             }
         }
         //4)
-        Assert.That(cats.Count == count && cats.Count == _partialLoader.Result.Count);
+        Assert.That(cats.Count == count && ((storeResult && cats.Count == _partialLoader.Result.Count) || (!storeResult && _partialLoader.Result.Count == 0)));
         Assert.That(cats.Zip(_partialLoader.Result).Zip(_catsList, (x, y) => x.First.Name == y.Name && x.Second.Name == y.Name).All(x => x));
     }
 

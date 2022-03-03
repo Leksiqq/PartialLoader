@@ -234,7 +234,14 @@ public class PartialLoader<T> : IPartialLoader<T>
         if(State == PartialLoaderState.Partial || State == PartialLoaderState.Full)
         {
             _chunk = _list!.GetRange(_offset, _list.Count - _offset);
-            _offset = _list.Count;
+            if(_options.StoreResult)
+            {
+                _offset = _list.Count;
+            }
+            else
+            {
+                _list.Clear();
+            }
         }
     }
 }
