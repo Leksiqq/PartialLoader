@@ -19,6 +19,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Library", "Library", "{6CF1
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{66FF0B88-8107-453B-89D3-539F128A8C04}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TransferJsonConverter", "TransferJsonConverter", "{DBAE6746-6908-4387-9175-259BAA269AB6}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TransferJsonConverter", "TransferJsonConverter\Library\TransferJsonConverter\TransferJsonConverter.csproj", "{600B1323-0AE4-493E-944C-5CBC67B8DC15}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,6 +49,10 @@ Global
 		{8B058AE0-D932-4DB5-BE8B-E38B5B0E8FE9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8B058AE0-D932-4DB5-BE8B-E38B5B0E8FE9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8B058AE0-D932-4DB5-BE8B-E38B5B0E8FE9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{600B1323-0AE4-493E-944C-5CBC67B8DC15}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{600B1323-0AE4-493E-944C-5CBC67B8DC15}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{600B1323-0AE4-493E-944C-5CBC67B8DC15}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{600B1323-0AE4-493E-944C-5CBC67B8DC15}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -55,6 +63,7 @@ Global
 		{8DE8D4FE-3E92-4CB7-94F7-CCE7DB3469CA} = {B7798DED-0DF2-4A0F-86AB-A3B04CF7581D}
 		{9323C754-B524-4CAB-B406-8AEBD3C05397} = {B7798DED-0DF2-4A0F-86AB-A3B04CF7581D}
 		{8B058AE0-D932-4DB5-BE8B-E38B5B0E8FE9} = {B7798DED-0DF2-4A0F-86AB-A3B04CF7581D}
+		{600B1323-0AE4-493E-944C-5CBC67B8DC15} = {DBAE6746-6908-4387-9175-259BAA269AB6}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {670D6896-2E49-45E8-8662-1F61FCDE7586}
