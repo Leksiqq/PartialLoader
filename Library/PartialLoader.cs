@@ -1,7 +1,9 @@
 ﻿namespace Net.Leksi;
 using System.Collections.Concurrent;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
-public class PartialLoader<T> : IPartialLoader<T>
+public class PartialLoader<T> : JsonConverter<T>, IPartialLoader<T>
 {
     private PartialLoaderOptions _options = null!;
     private ConcurrentQueue<T> _queue = new();
@@ -243,5 +245,20 @@ public class PartialLoader<T> : IPartialLoader<T>
                 _list.Clear();
             }
         }
+    }
+
+    public override bool CanConvert(Type typeToConvert)
+    {
+        return typeof(IPartialLoader<T>).IsAssignableFrom(typeToConvert);
+    }
+
+    public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
+    {
+        throw new NotImplementedException();
     }
 }

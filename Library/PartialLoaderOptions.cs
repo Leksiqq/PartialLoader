@@ -8,6 +8,5 @@ public class PartialLoaderOptions
     public bool ConfigureAwait { get; set; } = false;
     public bool StoreResult { get; set; } = false;
 
-
 }
 

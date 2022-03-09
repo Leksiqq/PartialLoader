@@ -1,0 +1,3 @@
+[submodule "TransferJsonConverter"]
+	path = TransferJsonConverter
+	url = ssh://leksiq@git.code.sf.net/p/transferjsonconverter/code
