@@ -408,11 +408,6 @@ public class TestPartialLoader
             int chunkCount = _partialLoader.Chunk.Count;
             cats.AddRange(_partialLoader.Chunk);
 
-            if (timeoutMs != -1 && (paging == 0 || paging > timeoutMs / delay))
-            {
-                // 1), 3)
-                Assert.That(chunkCount > 0);
-            }
             if (_partialLoader.State == PartialLoaderState.Partial)
             {
                 if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
