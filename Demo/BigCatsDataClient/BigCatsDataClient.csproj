@@ -1,13 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Exe</OutputType>
     <TargetFramework>net6.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\TransferJsonConverter\Library\TransferJsonConverter\TransferJsonConverter.csproj" />
     <ProjectReference Include="..\BigCatsDataContract\BigCatsDataContract.csproj" />
   </ItemGroup>
 

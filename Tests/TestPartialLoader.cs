@@ -6,7 +6,9 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -452,7 +454,8 @@ public class TestPartialLoader
 
         JsonSerializerOptions jsonOptions = new();
         jsonOptions.Converters.Add(_partialLoader);
-        jsonOptions.Converters.Add(new Tr)
+        jsonOptions.Converters.Add(new TransferJsonConverterFactory(null)
+            .AddTransient<ICat>());
         _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
         {
             Timeout = TimeSpan.FromMilliseconds(timeoutMs),
@@ -460,12 +463,23 @@ public class TestPartialLoader
             StoreResult = storeResult
         });
 
-        string json = await _partialLoader.StartAsync();
-
-        while (true)
+        do
         {
-            int chunkCount = _partialLoader.Chunk.Count;
-            cats.AddRange(_partialLoader.Chunk);
+            MemoryStream memoryStream = new MemoryStream();
+            await JsonSerializer.SerializeAsync<StubForJson<Cat>>(memoryStream, StubForJson<Cat>.Instance, jsonOptions);
+
+            memoryStream.Position = 0;
+            using var reader = new StreamReader(memoryStream);
+            string json = reader.ReadToEnd();
+
+            List<Cat> chunk = JsonSerializer.Deserialize<List<Cat>>(json);
+            if(chunk.Last() is null)
+            {
+                chunk.RemoveAt(chunk.Count - 1);
+            }
+            int chunkCount = chunk.Count;
+
+            cats.AddRange(chunk);
 
             if (timeoutMs != -1 && (paging == 0 || paging > timeoutMs / delay))
             {
@@ -479,7 +493,6 @@ public class TestPartialLoader
                     // 2), 3)
                     Assert.That(chunkCount == paging);
                 }
-                await _partialLoader.ContinueAsync();
             }
             else
             {
@@ -488,10 +501,10 @@ public class TestPartialLoader
                     // 2), 3)
                     Assert.That(chunkCount == (count % paging == 0 ? paging : count % paging));
                 }
-                break;
             }
         }
-        //4)
+        while (_partialLoader.State != PartialLoaderState.Full);
+
         Assert.That(cats.Count == count && ((storeResult && cats.Count == _partialLoader.Result.Count) || (!storeResult && _partialLoader.Result.Count == 0)));
         Assert.That(cats.Zip(_partialLoader.Result).Zip(_catsList, (x, y) => x.First.Name == y.Name && x.Second.Name == y.Name).All(x => x));
     }

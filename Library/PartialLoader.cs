@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-public class PartialLoader<T> : JsonConverter<T>, IPartialLoader<T>
+public class PartialLoader<T> : JsonConverter<StubForJson<T>>, IPartialLoader<T>
 {
     private PartialLoaderOptions? _options = null;
     private ConcurrentQueue<T> _queue = new();
@@ -207,29 +207,25 @@ public class PartialLoader<T> : JsonConverter<T>, IPartialLoader<T>
                 }
                 while (_queue.TryDequeue(out T? item))
                 {
-                    _options.OnItem?.Invoke(item);
-                    if(_writer is not null)
+                    if(item is not null)
                     {
-                        if(item is null)
-                        {
-                            _writer.WriteNullValue();
-                        }
-                        else
+                        _options.OnItem?.Invoke(item);
+                        if (_writer is not null)
                         {
                             JsonSerializer.Serialize(_writer, item, item.GetType(), _jsonOptions);
                         }
-                    }
-                    if (_writer is null || _options.StoreResult)
-                    {
-                        _list.Add(item);
-                    }
+                        if (_writer is null || _options.StoreResult)
+                        {
+                            _list.Add(item);
+                        }
 
-                    count++;
+                        count++;
 
-                    if (_options.Paging > 0 && count == _options.Paging)
-                    {
-                        Output(PartialLoaderState.Partial);
-                        return;
+                        if (_options.Paging > 0 && count == _options.Paging)
+                        {
+                            Output(PartialLoaderState.Partial);
+                            return;
+                        }
                     }
                 }
             }
@@ -255,30 +251,26 @@ public class PartialLoader<T> : JsonConverter<T>, IPartialLoader<T>
         }
         while (_queue.TryDequeue(out T? item))
         {
-            _options.OnItem?.Invoke(item);
-
-            if (_writer is not null)
+            if(item is not null)
             {
-                if (item is null)
-                {
-                    _writer.WriteNullValue();
-                }
-                else
+                _options.OnItem?.Invoke(item);
+
+                if (_writer is not null)
                 {
                     JsonSerializer.Serialize(_writer, item, item.GetType(), _jsonOptions);
                 }
-            }
-            if (_writer is null || _options.StoreResult)
-            {
-                _list.Add(item);
-            }
+                if (_writer is null || _options.StoreResult)
+                {
+                    _list.Add(item);
+                }
 
-            count++;
+                count++;
 
-            if (_options.Paging > 0 && count == _options.Paging)
-            {
-                Output(PartialLoaderState.Partial);
-                return;
+                if (_options.Paging > 0 && count == _options.Paging)
+                {
+                    Output(PartialLoaderState.Partial);
+                    return;
+                }
             }
         }
         if (_cancellationTokenSource!.Token.IsCancellationRequested)
@@ -327,15 +319,15 @@ public class PartialLoader<T> : JsonConverter<T>, IPartialLoader<T>
 
     public override bool CanConvert(Type typeToConvert)
     {
-        return typeof(IPartialLoader<T>).IsAssignableFrom(typeToConvert);
+        return typeof(StubForJson<T>) == typeToConvert;
     }
 
-    public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override StubForJson<T>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         throw new NotImplementedException();
     }
 
-    public override async void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
+    public override async void Write(Utf8JsonWriter writer, StubForJson<T> value, JsonSerializerOptions options)
     {
         _writer = writer;
         _jsonOptions = options;
@@ -353,7 +345,10 @@ public class PartialLoader<T> : JsonConverter<T>, IPartialLoader<T>
             default:
                 throw new InvalidOperationException($"Expected State: {PartialLoaderState.New} or {PartialLoaderState.Partial}, present: {State}");
         }
-
+        if(State == PartialLoaderState.Full)
+        {
+            writer.WriteNullValue();
+        }
         writer.WriteEndArray();
     }
 }

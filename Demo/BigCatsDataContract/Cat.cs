@@ -1,6 +1,6 @@
 ﻿namespace BigCatsDataContract
 {
-    public class Cat
+    public class Cat: ICat
     {
         public string Name { get; set; }
     }

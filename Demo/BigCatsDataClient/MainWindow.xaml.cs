@@ -1,4 +1,5 @@
 ﻿using BigCatsDataContract;
+using Net.Leksi;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -9,6 +10,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 
@@ -32,12 +34,13 @@ namespace BigCatsDataClient
         private TimeSpan _elapsedAll;
         private int _timeout = -1;
         private int _paging = 0;
+        private string _lastCommand = string.Empty;
 
         /// <summary xml:lang="ru">
         ///     Определяет, загружаются ли в данный момент данные. 
         ///     Также это сигнализирует, могут ли быть выполнены команды <see cref="GetAllCommand"/> и <see cref="GetChunksCommand"/>. 
         /// </summary>
-        private bool IsDataLOading
+        private bool IsDataLoading
         {
             get => _isDataLoading;
             set
@@ -45,6 +48,7 @@ namespace BigCatsDataClient
                 _isDataLoading = value;
                 GetAllCommand.Touch();
                 GetChunksCommand.Touch();
+                GetJsonCommand.Touch();
             }
         }
 
@@ -161,6 +165,19 @@ namespace BigCatsDataClient
             }
         }
 
+        public string LastCommand
+        {
+            get
+            {
+                return _lastCommand;
+            }
+            set
+            {
+                _lastCommand = value;
+                OnPropertyChanged();
+            }
+        }
+
         /// <summary xml:lang="ru">
         ///     Коллекция загруженных кошек.
         /// </summary>
@@ -181,35 +198,41 @@ namespace BigCatsDataClient
         /// </summary>
         public Command GetChunksCommand { get; init; }
 
+        /// <summary xml:lang="ru">
+        ///     Команда для связи метода загрузки частями с соответствующей кнопкой UI.
+        /// </summary>
+        public Command GetJsonCommand { get; init; }
+
         public MainWindow()
         {
-            GetAllCommand = new Command(async _ => await GetAllCats(), _ => !IsDataLOading);
-            GetChunksCommand = new Command(async _ => await GetChunksCats(), _ => !IsDataLOading);
+            GetAllCommand = new Command(async _ => await GetAllCats(), _ => !IsDataLoading);
+            GetChunksCommand = new Command(async _ => await GetChunksCats(Constants.ChunksUri), _ => !IsDataLoading);
+            GetJsonCommand = new Command(async _ => await GetChunksCats(Constants.JsonUri), _ => !IsDataLoading);
             InitializeComponent();
         }
 
         /// <summary xml:lang="ru">
         ///     Метод загрузки частями.
         /// </summary>
-        private async Task GetChunksCats()
+        private async Task GetChunksCats(string path)
         {
             DispatcherOperation? clearOp = null;
             DispatcherOperation? elapsedOp = null;
             try
             {
-                IsDataLOading = true;
+                IsDataLoading = true;
                 DateTimeOffset started = DateTimeOffset.Now;
                 ElapsedChunks = DateTimeOffset.Now - started;
 
                 // Тикают часики, пока идёт загрузка
                 elapsedOp = Dispatcher.BeginInvoke(async () =>
                 {
-                    while (IsDataLOading)
+                    while (IsDataLoading)
                     {
                         bool willContinue = false;
                         lock (_lockIsDataLoading)
                         {
-                            if (IsDataLOading)
+                            if (IsDataLoading)
                             {
                                 willContinue = true;
                             }
@@ -222,9 +245,15 @@ namespace BigCatsDataClient
                     }
                 });
 
+                JsonSerializerOptions jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = false };
+                var converter = new TransferJsonConverterFactory(null)
+                    .AddTransient<ICat, Cat>();
+                jsonOptions.Converters.Add(converter);
+
                 // Чистим таблицы параллельно с подготовкой к получению кошек.
                 clearOp = Dispatcher.BeginInvoke(() =>
                 {
+                    converter.ObjectsPool[typeof(Cat)] = Cats.Select(it => (object)it).ToList();
                     Cats.Clear();
                     Chunks.Clear();
                 });
@@ -241,31 +270,34 @@ namespace BigCatsDataClient
                 _client.BaseAddress = new Uri(Server);
 
                 // Передаём запрос серверу в стиле REST
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{Constants.ChunkslUri}/{Count}/{Timeout}/{Paging}/{Delay.ToString().Replace(',', '.')}");
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{path}/{Count}/{Timeout}/{Paging}/{Delay.ToString().Replace(',', '.')}");
                 HttpResponseMessage response = await _client.SendAsync(request).ConfigureAwait(false);
 
                 // Кошки приехали, ждём на случай, если таблицы не дочистились
                 await clearOp;
 
-                while(response.StatusCode == System.Net.HttpStatusCode.OK && IsDataLOading)
+                while (response is not null && response.StatusCode == System.Net.HttpStatusCode.OK && IsDataLoading)
                 {
                     // Обрабатываем данные в Dispatcher, чтобы не влезть в UI из левого потока.
                     await Dispatcher.BeginInvoke(async () =>
                     {
-                        List<Cat>? list = await JsonSerializer.DeserializeAsync<List<Cat>>(response.Content.ReadAsStream(),
-                                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-                        // Добавляем кошек в таблицу с кошками
-                        foreach (Cat cat in list)
+                        converter.Target = Cats;
+                        int prevCount = Cats.Count;
+                        try
                         {
-                            Cats.Add(cat);
+                            await JsonSerializer.DeserializeAsync<AppendableList<ICat>>(response.Content.ReadAsStream(),
+                                    jsonOptions);
+                        }
+                        catch(Exception ex)
+                        {
+                            Console.WriteLine(ex);
                         }
 
                         // Добавляем инфу в таблицу с инфой.
                         Chunks.Add(new Chunk
                         {
                             Id = Chunks.Count + 1,
-                            Count = list.Count,
+                            Count = Cats.Count - prevCount,
                             CountAll = Cats.Count,
                             ElapsedTotal = ElapsedChunks,
                         });
@@ -275,33 +307,38 @@ namespace BigCatsDataClient
                             Chunks.Last().Elapsed -= Chunks[^2].ElapsedTotal;
                         }
 
-                        if (response.Headers.GetValues(Constants.PartialLoaderStateHeaderName).First() == Constants.Partial)
-                        {
-                            // Если данные пришли не полностью, повторяем запрос. Можно без параметров, так как сервер подставит значения по умолчанию,
-                            // но они всё равно не будут использоваться, так как мы передаём заголовок с идентификатором запроса, который сервер
-                            // вернул нам с неполными данными.
-                            request = new HttpRequestMessage(HttpMethod.Get, $"{Constants.ChunkslUri}");
-                            request.Headers.Add(Constants.PartialLoaderSessionKey, response.Headers.GetValues(Constants.PartialLoaderSessionKey).First());
-                            response = await _client.SendAsync(request).ConfigureAwait(false);
-                        }
-                        else
-                        {
-                            // Данные пришли полностью.
-                            lock (_lockIsDataLoading)
-                            {
-                                IsDataLOading = false;
-                            }
-                            // Ждём, когда UI остановит часики
-                            await elapsedOp;
-                        }
                     });
+                    if (!converter.EndOfData && (!response.Headers.Contains(Constants.PartialLoaderStateHeaderName) 
+                            || response.Headers.GetValues(Constants.PartialLoaderStateHeaderName).First() == Constants.Partial))
+                    {
+                        // Если данные пришли не полностью, повторяем запрос. Можно без параметров, так как сервер подставит значения по умолчанию,
+                        // но они всё равно не будут использоваться, так как мы передаём заголовок с идентификатором запроса, который сервер
+                        // вернул нам с неполными данными.
+                        request = new HttpRequestMessage(HttpMethod.Get, $"{path}");
+                        request.Headers.Add(Constants.PartialLoaderSessionKey, response.Headers.GetValues(Constants.PartialLoaderSessionKey).First());
+                        response = await _client.SendAsync(request).ConfigureAwait(false);
+
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
-                if(response.StatusCode != System.Net.HttpStatusCode.OK)
+                await Dispatcher.BeginInvoke(async () =>
+                {
+                    lock (_lockIsDataLoading)
+                    {
+                        IsDataLoading = false;
+                    }
+                    // Ждём, когда UI остановит часики
+                    await elapsedOp;
+                });
+                if (response.StatusCode != System.Net.HttpStatusCode.OK && response.StatusCode != System.Net.HttpStatusCode.NoContent)
                 {
                     // Сервер сказал: "не ОК"
                     await Dispatcher.Invoke(async () =>
                     {
-                        IsDataLOading = false;
+                        IsDataLoading = false;
                         await elapsedOp;
                         MessageBox.Show($"Сервер вернул {response.StatusCode}");
                     });
@@ -312,7 +349,7 @@ namespace BigCatsDataClient
                 // Что-то пошло вообще не так
                 await Dispatcher.Invoke(async () =>
                 {
-                    IsDataLOading = false;
+                    IsDataLoading = false;
                     await elapsedOp;
                     MessageBox.Show($"{ex.GetType().ToString()}: {ex.Message}\n{ex.StackTrace}");
                 });
@@ -333,19 +370,19 @@ namespace BigCatsDataClient
             DispatcherOperation? elapsedOp = null;
             try
             {
-                IsDataLOading = true;
+                IsDataLoading = true;
                 DateTimeOffset started = DateTimeOffset.Now;
                 ElapsedAll = DateTimeOffset.Now - started;
 
                 // Тикают часики, пока идёт загрузка
                 elapsedOp = Dispatcher.BeginInvoke(async () =>
                 {
-                    while (IsDataLOading)
+                    while (IsDataLoading)
                     {
                         bool willContinue = false;
                         lock (_lockIsDataLoading)
                         {
-                            if (IsDataLOading)
+                            if (IsDataLoading)
                             {
                                 willContinue = true;
                             }
@@ -358,9 +395,15 @@ namespace BigCatsDataClient
                     }
                 });
 
+                JsonSerializerOptions jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = false };
+                var converter = new TransferJsonConverterFactory(null)
+                    .AddTransient<ICat, Cat>();
+                jsonOptions.Converters.Add(converter);
+
                 // Чистим таблицы параллельно с подготовкой к получению кошек.
                 clearOp = Dispatcher.BeginInvoke(() =>
                 {
+                    converter.ObjectsPool[typeof(Cat)] = Cats.Select(it => (object)it).ToList();
                     Cats.Clear();
                     Chunks.Clear();
                 });
@@ -388,25 +431,29 @@ namespace BigCatsDataClient
                     // Обрабатываем данные в Dispatcher, чтобы не влезть в UI из левого потока.
                     await Dispatcher.BeginInvoke(async () =>
                     {
-                        List<Cat>? list = await JsonSerializer.DeserializeAsync<List<Cat>>(response.Content.ReadAsStream(),
-                                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                            // Добавляем кошек в таблицу с кошками
-                        foreach (Cat cat in list)
+                        converter.Target = Cats;
+                        int prevCount = Cats.Count;
+                        try
                         {
-                            Cats.Add(cat);
+                            await JsonSerializer.DeserializeAsync<AppendableList<ICat>>(response.Content.ReadAsStream(),
+                                    jsonOptions);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine(ex);
                         }
 
                         // Данные пришли полностью.
                         lock (_lockIsDataLoading)
                         {
-                            IsDataLOading = false;
+                            IsDataLoading = false;
                         }
 
                         // Добавляем инфу в таблицу с инфой.
                         Chunks.Add(new Chunk
                         {
                             Id = Chunks.Count + 1,
-                            Count = list.Count,
+                            Count = Cats.Count - prevCount,
                             CountAll = Cats.Count,
                             Elapsed = ElapsedAll,
                             ElapsedTotal = ElapsedAll
@@ -420,7 +467,7 @@ namespace BigCatsDataClient
                     // Сервер сказал: "не ОК"
                     await Dispatcher.Invoke(async () =>
                     {
-                        IsDataLOading = false;
+                        IsDataLoading = false;
                         await elapsedOp;
                         MessageBox.Show($"Сервер вернул {response.StatusCode}");
                     });
@@ -432,12 +479,19 @@ namespace BigCatsDataClient
                 // Что-то пошло вообще не так
                 await Dispatcher.Invoke(async () =>
                 {
-                    IsDataLOading = false;
+                    IsDataLoading = false;
                     await elapsedOp;
                     MessageBox.Show($"{ex.GetType().ToString()}: {ex.Message}\n{ex.StackTrace}");
                 });
             }
         }
 
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            if(sender is Button button)
+            {
+                LastCommand = button.Content.ToString();
+            }
+        }
     }
 }
