@@ -8,7 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\TransferJsonConverter\Library\TransferJsonConverter\TransferJsonConverter.csproj" />
+    <PackageReference Include="Net.Leksi.TransferJsonConverter" Version="1.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\BigCatsDataContract\BigCatsDataContract.csproj" />
   </ItemGroup>
 
