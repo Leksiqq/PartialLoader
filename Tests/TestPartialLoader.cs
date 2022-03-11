@@ -1,4 +1,4 @@
-namespace Net.Leksi;
+namespace Net.Leksi.PartialLoader;
 
 using BigCatsDataContract;
 using BigCatsDataServer;
@@ -6,10 +6,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -22,21 +19,15 @@ public class TestPartialLoader
     /// </summary>
     public enum TestWorkflowCase
     {
-        ContunueNewState,
-        ContunueFullState,
-        ContinueStartedState,
-        ContinueContinuedState,
-        StartPartialState,
-        StartFullState,
-        StartStartedState,
-        StartContinuedState,
-        ChunkNewState,
-        ChunkStartedState,
-        ChunkContinuedState,
-        ResultNewState,
-        ResultStartedState,
-        ResultContinuedState,
-        ResultPartialState,
+        LoadNewState,
+        LoadFullState,
+        LoadStartedState,
+        LoadContinuedState,
+        InitializeInitializedState,
+        InitializePartialState,
+        InitializeFullState,
+        InitializeStartedState,
+        InitializeContinuedState,
     }
 
     /// <summary xml:lang="ru">
@@ -45,6 +36,7 @@ public class TestPartialLoader
     public enum TestCancelationCase
     {
         CancelNewState,
+        CancelInitilizedState,
         CancelStartedState,
         CancelPartialState,
         CancelContinuedState,
@@ -112,19 +104,19 @@ public class TestPartialLoader
     ///<param xml:lang="ru" name="paging">Значение пейджинга - желаемого размера очередной порции (chunk) котиков в штуках.</param>
     ///<param xml:lang="ru" name="delay">Значение времени, необходимого для получения одного котика в миллисекундах.</param>
     ///<param xml:lang="ru" name="count">Общее количество котиков.</param>
-    [Test]
-    [TestCase(100, 0, 10, 1001, false)]
-    [TestCase(-1, 4, 0, 1001, false)]
-    [TestCase(100, 4, 10, 1001, false)]
-    [TestCase(100, 11, 10, 1001, false)]
-    [TestCase(100, 0, 10, 1001, true)]
-    [TestCase(-1, 4, 0, 1001, true)]
-    [TestCase(100, 4, 10, 1001, true)]
-    [TestCase(100, 11, 10, 1001, true)]
-    public void TestSerializeCats(int timeoutMs, int paging, int delay, int count, bool storeResult)
-    {
-        RunSerializeCats(timeoutMs, paging, delay, count, storeResult).Wait();
-    }
+    //[Test]
+    //[TestCase(100, 0, 10, 1001, false)]
+    //[TestCase(-1, 4, 0, 1001, false)]
+    //[TestCase(100, 4, 10, 1001, false)]
+    //[TestCase(100, 11, 10, 1001, false)]
+    //[TestCase(100, 0, 10, 1001, true)]
+    //[TestCase(-1, 4, 0, 1001, true)]
+    //[TestCase(100, 4, 10, 1001, true)]
+    //[TestCase(100, 11, 10, 1001, true)]
+    //public void TestSerializeCats(int timeoutMs, int paging, int delay, int count, bool storeResult)
+    //{
+    //    RunSerializeCats(timeoutMs, paging, delay, count, storeResult).Wait();
+    //}
 
     /// <summary xml:lang="ru">
     /// Тестируем класс <see cref="Btcom.Server.PartialLoader{T}"/>. Тестируем все варианты неправильных последовательностей. 
@@ -133,21 +125,15 @@ public class TestPartialLoader
     /// </summary>
     /// <param xml:lang="ru" name="testWorkflowCase"><see cref="TestWorkflowCase"/></param>
     [Test]
-    [TestCase(TestWorkflowCase.ContunueNewState)]
-    [TestCase(TestWorkflowCase.ContunueFullState)]
-    [TestCase(TestWorkflowCase.ContinueStartedState)]
-    [TestCase(TestWorkflowCase.ContinueContinuedState)]
-    [TestCase(TestWorkflowCase.StartPartialState)]
-    [TestCase(TestWorkflowCase.StartFullState)]
-    [TestCase(TestWorkflowCase.StartStartedState)]
-    [TestCase(TestWorkflowCase.StartContinuedState)]
-    [TestCase(TestWorkflowCase.ChunkNewState)]
-    [TestCase(TestWorkflowCase.ChunkStartedState)]
-    [TestCase(TestWorkflowCase.ChunkContinuedState)]
-    [TestCase(TestWorkflowCase.ResultNewState)]
-    [TestCase(TestWorkflowCase.ResultPartialState)]
-    [TestCase(TestWorkflowCase.ResultStartedState)]
-    [TestCase(TestWorkflowCase.ResultContinuedState)]
+    [TestCase(TestWorkflowCase.LoadNewState)]
+    [TestCase(TestWorkflowCase.LoadFullState)]
+    [TestCase(TestWorkflowCase.LoadStartedState)]
+    [TestCase(TestWorkflowCase.LoadContinuedState)]
+    [TestCase(TestWorkflowCase.InitializeInitializedState)]
+    [TestCase(TestWorkflowCase.InitializePartialState)]
+    [TestCase(TestWorkflowCase.InitializeFullState)]
+    [TestCase(TestWorkflowCase.InitializeStartedState)]
+    [TestCase(TestWorkflowCase.InitializeContinuedState)]
     public void TestWorkflow(TestWorkflowCase testWorkflowCase)
     {
         var ex = Assert.Throws<AggregateException>(
@@ -156,73 +142,45 @@ public class TestPartialLoader
         var ex1 = Assert.Catch(() => throw ex!.InnerException!);
         switch (testWorkflowCase)
         {
-            case TestWorkflowCase.ContunueNewState:
+            case TestWorkflowCase.LoadNewState:
                 Assert.Throws<InvalidOperationException>(() => throw ex1!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Partial, present: New"));
+                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Initialized or Partial, present: New"));
                 break;
-            case TestWorkflowCase.ContunueFullState:
+            case TestWorkflowCase.LoadFullState:
                 Assert.Throws<InvalidOperationException>(() => throw ex1!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Partial, present: Full"));
+                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Initialized or Partial, present: Full"));
                 break;
-            case TestWorkflowCase.ContinueStartedState:
+            case TestWorkflowCase.LoadStartedState:
                 ex1 = Assert.Throws<AggregateException>(() => throw ex1!);
                 ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!.InnerException!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Partial, present: Started"));
+                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Initialized or Partial, present: Started"));
                 break;
-            case TestWorkflowCase.ContinueContinuedState:
+            case TestWorkflowCase.LoadContinuedState:
                 ex1 = Assert.Throws<AggregateException>(() => throw ex1!);
                 ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!.InnerException!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Partial, present: Continued"));
+                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Initialized or Partial, present: Continued"));
                 break;
-            case TestWorkflowCase.StartPartialState:
+            case TestWorkflowCase.InitializeInitializedState:
+                ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!);
+                Assert.That(ex1!.Message, Is.EqualTo("Expected State: New, present: Initialized"));
+                break;
+            case TestWorkflowCase.InitializePartialState:
                 Assert.Throws<InvalidOperationException>(() => throw ex1!);
                 Assert.That(ex1!.Message, Is.EqualTo("Expected State: New, present: Partial"));
                 break;
-            case TestWorkflowCase.StartFullState:
+            case TestWorkflowCase.InitializeFullState:
                 Assert.Throws<InvalidOperationException>(() => throw ex1!);
                 Assert.That(ex1!.Message, Is.EqualTo("Expected State: New, present: Full"));
                 break;
-            case TestWorkflowCase.StartStartedState:
+            case TestWorkflowCase.InitializeStartedState:
                 ex1 = Assert.Throws<AggregateException>(() => throw ex1!);
                 ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!.InnerException!);
                 Assert.That(ex1!.Message, Is.EqualTo("Expected State: New, present: Started"));
                 break;
-            case TestWorkflowCase.StartContinuedState:
+            case TestWorkflowCase.InitializeContinuedState:
                 ex1 = Assert.Throws<AggregateException>(() => throw ex1!);
                 ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!.InnerException!);
                 Assert.That(ex1!.Message, Is.EqualTo("Expected State: New, present: Continued"));
-                break;
-            case TestWorkflowCase.ChunkNewState:
-                Assert.Throws<InvalidOperationException>(() => throw ex1!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Full or Partial, present: New"));
-                break;
-            case TestWorkflowCase.ChunkStartedState:
-                ex1 = Assert.Throws<AggregateException>(() => throw ex1!);
-                ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!.InnerException!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Full or Partial, present: Started"));
-                break;
-            case TestWorkflowCase.ChunkContinuedState:
-                ex1 = Assert.Throws<AggregateException>(() => throw ex1!);
-                ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!.InnerException!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Full or Partial, present: Continued"));
-                break;
-            case TestWorkflowCase.ResultNewState:
-                Assert.Throws<InvalidOperationException>(() => throw ex1!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Full, present: New"));
-                break;
-            case TestWorkflowCase.ResultPartialState:
-                Assert.Throws<InvalidOperationException>(() => throw ex1!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Full, present: Partial"));
-                break;
-            case TestWorkflowCase.ResultStartedState:
-                ex1 = Assert.Throws<AggregateException>(() => throw ex1!);
-                ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!.InnerException!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Full, present: Started"));
-                break;
-            case TestWorkflowCase.ResultContinuedState:
-                ex1 = Assert.Throws<AggregateException>(() => throw ex1!);
-                ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!.InnerException!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Full, present: Continued"));
                 break;
             default:
                 Console.WriteLine(ex);
@@ -240,21 +198,23 @@ public class TestPartialLoader
     /// <param  xml:lang="ru" name="testCancelationCase"><see cref="TestCancelationCase"/></param>
     [Test]
     [TestCase(TestCancelationCase.CancelNewState)]
+    [TestCase(TestCancelationCase.CancelInitilizedState)]
     [TestCase(TestCancelationCase.CancelStartedState)]
     [TestCase(TestCancelationCase.CancelPartialState)]
     [TestCase(TestCancelationCase.CancelContinuedState)]
     [TestCase(TestCancelationCase.CancelFullState)]
     public void TestCancelation(TestCancelationCase testCancelationCase)
     {
-        switch(testCancelationCase)
+        switch (testCancelationCase)
         {
             case
                 TestCancelationCase.CancelNewState or
+                TestCancelationCase.CancelInitilizedState or
                 TestCancelationCase.CancelStartedState or
                 TestCancelationCase.CancelPartialState or
                 TestCancelationCase.CancelContinuedState or
                 TestCancelationCase.CancelFullState:
-                    RunCancelation(testCancelationCase).Wait();
+                RunCancelation(testCancelationCase).Wait();
                 break;
         }
     }
@@ -263,7 +223,6 @@ public class TestPartialLoader
     {
         const int count = 1001;
 
-        Task? auxTask = null;
         List<Cat> catList = new List<Cat>();
         int delay = testCancelationCase switch
         {
@@ -279,105 +238,83 @@ public class TestPartialLoader
             paging = 0;
         }
         _partialLoader.Reset();
-        using (CancellationTokenSource cancellationTokenSource = new()) 
+        using (CancellationTokenSource cancellationTokenSource = new())
         {
-            switch (testCancelationCase)
+            if (testCancelationCase == TestCancelationCase.CancelNewState)
             {
-                case TestCancelationCase.CancelNewState:
+                cancellationTokenSource.Cancel();
+                Assert.That(_partialLoader.State, Is.EqualTo(PartialLoaderState.New));
+                return;
+            }
+            else
+            {
+                _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
+                {
+                    Timeout = TimeSpan.FromMilliseconds(timeoutMs),
+                    Paging = paging,
+                    CancellationToken = cancellationTokenSource.Token
+                });
+                if (testCancelationCase == TestCancelationCase.CancelInitilizedState)
+                {
                     cancellationTokenSource.Cancel();
-                    break;
-                case TestCancelationCase.CancelStartedState:
-                    auxTask = Task.Run(async () =>
-                    {
-                        await Task.Delay(timeoutMs / 2);
-                        cancellationTokenSource.Cancel();
-                    });
-                    break;
-            }
-            await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
-            {
-                Timeout = TimeSpan.FromMilliseconds(timeoutMs),
-                Paging = paging,
-                CancellationToken = cancellationTokenSource.Token
-            });
-            Console.WriteLine(_partialLoader.CancelationTrace);
-            switch (testCancelationCase)
-            {
-                case TestCancelationCase.CancelNewState:
-                    Assert.That(_partialLoader.CancelationTrace == "1");
-                    break;
-                case TestCancelationCase.CancelStartedState:
-                    Assert.That(_partialLoader.CancelationTrace == "2,3,4,5");
-                    break;
-            }
-            while (_partialLoader.State != PartialLoaderState.Canceled)
-            {
-                if (auxTask is not null && auxTask.IsFaulted)
-                {
-                    throw auxTask.Exception!;
+                    Assert.That(_partialLoader.State, Is.EqualTo(PartialLoaderState.Initialized));
+                    return;
                 }
-                if (_partialLoader.State != PartialLoaderState.Full)
+                Task t = _partialLoader.LoadAsync();
+                if (testCancelationCase == TestCancelationCase.CancelStartedState)
                 {
-                    switch (testCancelationCase)
+                    cancellationTokenSource.Cancel();
+                }
+                await t;
+                if (testCancelationCase == TestCancelationCase.CancelStartedState)
+                {
+                }
+                while (_partialLoader.State != PartialLoaderState.Canceled)
+                {
+                    if (_partialLoader.State != PartialLoaderState.Full)
                     {
-                        case TestCancelationCase.CancelPartialState:
+                        if (testCancelationCase == TestCancelationCase.CancelPartialState)
+                        {
                             cancellationTokenSource.Cancel();
-                            break;
-                        case TestCancelationCase.CancelContinuedState:
-                            auxTask = Task.Run(async () =>
+                        }
+                        else if (testCancelationCase == TestCancelationCase.CancelContinuedState)
+                        {
+                            Task.Run(async () =>
                             {
+                                Task t = Task.Run(() => _partialLoader.LoadAsync());
                                 await Task.Delay(timeoutMs / 2);
                                 cancellationTokenSource.Cancel();
-                            });
+                                await t;
+                            }).Wait();
+                        }
+                        else
+                        {
+                            await _partialLoader.LoadAsync();
+                        }
+                        if (testCancelationCase == TestCancelationCase.CancelPartialState)
+                        {
+                            await _partialLoader.LoadAsync();
                             break;
+                        }
+                        if (testCancelationCase == TestCancelationCase.CancelContinuedState)
+                        {
+                            break;
+                        }
                     }
-                    await _partialLoader.ContinueAsync();
-                    switch (testCancelationCase)
+                    else
                     {
-                        case TestCancelationCase.CancelPartialState:
-                            Assert.That(_partialLoader.CancelationTrace == "2,3,4,5");
-                            break;
-                        case TestCancelationCase.CancelContinuedState:
-                            Assert.That(_partialLoader.CancelationTrace == "2,3,4,5");
-                            break;
+                        switch (testCancelationCase)
+                        {
+                            case TestCancelationCase.CancelFullState:
+                                cancellationTokenSource.Cancel();
+                                Assert.That(_partialLoader.State == PartialLoaderState.Full);
+                                return;
+                        }
+                        break;
                     }
                 }
-                else
-                {
-                    switch (testCancelationCase)
-                    {
-                        case TestCancelationCase.CancelFullState:
-                            cancellationTokenSource.Cancel();
-                            Assert.That(_partialLoader.State == PartialLoaderState.Full);
-                            Assert.That(_partialLoader.CancelationTrace == string.Empty);
-                            return;
-                    }
-                    break;
-                }
-            }
-            if (auxTask is not null)
-            {
-                await auxTask;
             }
             Assert.That(_partialLoader.State == PartialLoaderState.Canceled);
-
-            var ex0 = Assert.Catch<AggregateException>(() => _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions()).Wait());
-            var ex = Assert.Throws<InvalidOperationException>(() => throw ex0!.InnerException!);
-
-            Assert.That(ex!.Message, Is.EqualTo("Expected State: New, present: Canceled"));
-
-            ex0 = Assert.Catch<AggregateException>(() => _partialLoader.ContinueAsync().Wait());
-            ex = Assert.Throws<InvalidOperationException>(() => throw ex0!.InnerException!);
-            Assert.That(ex!.Message, Is.EqualTo("Expected State: Partial, present: Canceled"));
-
-            List<Cat> cats = new List<Cat>();
-
-            ex = Assert.Throws<InvalidOperationException>(() => cats.AddRange(_partialLoader.Chunk));
-            Assert.That(ex!.Message, Is.EqualTo("Expected State: Full or Partial, present: Canceled"));
-
-            ex = Assert.Throws<InvalidOperationException>(() => cats.AddRange(_partialLoader.Result));
-            Assert.That(ex!.Message, Is.EqualTo("Expected State: Full, present: Canceled"));
-
         }
     }
 
@@ -396,26 +333,47 @@ public class TestPartialLoader
 
         _partialLoader.Reset();
 
-        await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
+
+        List<Cat> result = new List<Cat>();
+        List<Cat> chunk = new List<Cat>();
+
+        PartialLoaderOptions options = new PartialLoaderOptions
         {
             Timeout = TimeSpan.FromMilliseconds(timeoutMs),
             Paging = paging,
-            StoreResult = storeResult
+        };
+
+        _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), options);
+        _partialLoader.AddUtilizer(item =>
+        {
+            chunk.Add(item);
+            return item;
         });
+        if (storeResult)
+        {
+            _partialLoader.AddUtilizer(item =>
+            {
+                result.Add(item);
+                return item;
+            });
+        }
+        await _partialLoader.LoadAsync();
 
         while (true)
         {
-            int chunkCount = _partialLoader.Chunk.Count;
-            cats.AddRange(_partialLoader.Chunk);
+            int chunkCount = chunk.Count;
+            cats.AddRange(chunk);
+
+            chunk.Clear();
 
             if (_partialLoader.State == PartialLoaderState.Partial)
             {
                 if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
                 {
                     // 2), 3)
-                    Assert.That(chunkCount == paging);
+                    Assert.That(chunkCount, Is.EqualTo(paging));
                 }
-                await _partialLoader.ContinueAsync();
+                await _partialLoader.LoadAsync();
             }
             else
             {
@@ -428,103 +386,99 @@ public class TestPartialLoader
             }
         }
         //4)
-        Assert.That(cats.Count == count && ((storeResult && cats.Count == _partialLoader.Result.Count) || (!storeResult && _partialLoader.Result.Count == 0)));
-        Assert.That(cats.Zip(_partialLoader.Result).Zip(_catsList, (x, y) => x.First.Name == y.Name && x.Second.Name == y.Name).All(x => x));
+        Assert.That(cats.Count == count && ((storeResult && cats.Count == result.Count) || (!storeResult && result.Count == 0)));
+        Assert.That(cats.Zip(result).Zip(_catsList, (x, y) => x.First.Name == y.Name && x.Second.Name == y.Name).All(x => x));
     }
 
-    private async Task RunSerializeCats(int timeoutMs, int paging, int delay, int count, bool storeResult)
-    {
-        if (timeoutMs != -1 && delay == 0)
-        {
-            Assert.Fail("Если установлен таймаут, задержка должна быть больше 0!");
-        }
-        List<Cat> cats = new List<Cat>();
+    //private async Task RunSerializeCats(int timeoutMs, int paging, int delay, int count, bool storeResult)
+    //{
+    //    if (timeoutMs != -1 && delay == 0)
+    //    {
+    //        Assert.Fail("Если установлен таймаут, задержка должна быть больше 0!");
+    //    }
+    //    List<Cat> cats = new List<Cat>();
 
-        for (int i = _catsList.Count; i < count; i++)
-        {
-            _catsList.Add(new Cat { Name = $"{CatsGenerator.CatNamePrefix}{i + 1}" });
-        }
+    //    for (int i = _catsList.Count; i < count; i++)
+    //    {
+    //        _catsList.Add(new Cat { Name = $"{CatsGenerator.CatNamePrefix}{i + 1}" });
+    //    }
 
-        _partialLoader.Reset();
+    //    _partialLoader.Reset();
 
-        JsonSerializerOptions jsonOptions = new();
-        jsonOptions.Converters.Add(_partialLoader);
-        jsonOptions.Converters.Add(new TransferJsonConverterFactory(null)
-            .AddTransient<ICat>());
-        _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
-        {
-            Timeout = TimeSpan.FromMilliseconds(timeoutMs),
-            Paging = paging,
-            StoreResult = storeResult
-        });
+    //    JsonSerializerOptions jsonOptions = new();
+    //    jsonOptions.Converters.Add(_partialLoader);
+    //    jsonOptions.Converters.Add(new TransferJsonConverterFactory(null)
+    //        .AddTransient<ICat>());
+    //    _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
+    //    {
+    //        Timeout = TimeSpan.FromMilliseconds(timeoutMs),
+    //        Paging = paging,
+    //        StoreResult = storeResult
+    //    });
 
-        do
-        {
-            MemoryStream memoryStream = new MemoryStream();
-            await JsonSerializer.SerializeAsync<StubForJson<Cat>>(memoryStream, StubForJson<Cat>.Instance, jsonOptions);
+    //    do
+    //    {
+    //        MemoryStream memoryStream = new MemoryStream();
+    //        await JsonSerializer.SerializeAsync<StubForJson<Cat>>(memoryStream, StubForJson<Cat>.Instance, jsonOptions);
 
-            memoryStream.Position = 0;
-            using var reader = new StreamReader(memoryStream);
-            string json = reader.ReadToEnd();
+    //        memoryStream.Position = 0;
+    //        using var reader = new StreamReader(memoryStream);
+    //        string json = reader.ReadToEnd();
 
-            List<Cat> chunk = JsonSerializer.Deserialize<List<Cat>>(json);
-            if(chunk.Last() is null)
-            {
-                chunk.RemoveAt(chunk.Count - 1);
-            }
-            int chunkCount = chunk.Count;
+    //        List<Cat> chunk = JsonSerializer.Deserialize<List<Cat>>(json);
+    //        if(chunk.Last() is null)
+    //        {
+    //            chunk.RemoveAt(chunk.Count - 1);
+    //        }
+    //        int chunkCount = chunk.Count;
 
-            cats.AddRange(chunk);
+    //        cats.AddRange(chunk);
 
-            if (timeoutMs != -1 && (paging == 0 || paging > timeoutMs / delay))
-            {
-                // 1), 3)
-                Assert.That(chunkCount > 0);
-            }
-            if (_partialLoader.State == PartialLoaderState.Partial)
-            {
-                if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
-                {
-                    // 2), 3)
-                    Assert.That(chunkCount == paging);
-                }
-            }
-            else
-            {
-                if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
-                {
-                    // 2), 3)
-                    Assert.That(chunkCount == (count % paging == 0 ? paging : count % paging));
-                }
-            }
-        }
-        while (_partialLoader.State != PartialLoaderState.Full);
+    //        if (timeoutMs != -1 && (paging == 0 || paging > timeoutMs / delay))
+    //        {
+    //            // 1), 3)
+    //            Assert.That(chunkCount > 0);
+    //        }
+    //        if (_partialLoader.State == PartialLoaderState.Partial)
+    //        {
+    //            if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
+    //            {
+    //                // 2), 3)
+    //                Assert.That(chunkCount == paging);
+    //            }
+    //        }
+    //        else
+    //        {
+    //            if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
+    //            {
+    //                // 2), 3)
+    //                Assert.That(chunkCount == (count % paging == 0 ? paging : count % paging));
+    //            }
+    //        }
+    //    }
+    //    while (_partialLoader.State != PartialLoaderState.Full);
 
-        Assert.That(cats.Count == count && ((storeResult && cats.Count == _partialLoader.Result.Count) || (!storeResult && _partialLoader.Result.Count == 0)));
-        Assert.That(cats.Zip(_partialLoader.Result).Zip(_catsList, (x, y) => x.First.Name == y.Name && x.Second.Name == y.Name).All(x => x));
-    }
+    //    Assert.That(cats.Count == count && ((storeResult && cats.Count == _partialLoader.Result.Count) || (!storeResult && _partialLoader.Result.Count == 0)));
+    //    Assert.That(cats.Zip(_partialLoader.Result).Zip(_catsList, (x, y) => x.First.Name == y.Name && x.Second.Name == y.Name).All(x => x));
+    //}
 
     private async Task RunWorkflow(TestWorkflowCase testWorkflowCase, int timeoutMs = -1, int paging = 4)
     {
         const int count = 1001;
 
-        int delay = testWorkflowCase switch {
-            TestWorkflowCase.StartFullState => 0,
-            TestWorkflowCase.ContunueFullState => 0,
+        int delay = testWorkflowCase switch
+        {
+            TestWorkflowCase.InitializeFullState => 0,
+            TestWorkflowCase.LoadFullState => 0,
             _ => 10
         };
-        Task? auxTask = null;
         List<Cat> cats = new List<Cat>();
 
         if (
-            testWorkflowCase == TestWorkflowCase.ContinueStartedState ||
-            testWorkflowCase == TestWorkflowCase.ContinueContinuedState ||
-            testWorkflowCase == TestWorkflowCase.StartStartedState ||
-            testWorkflowCase == TestWorkflowCase.StartContinuedState ||
-            testWorkflowCase == TestWorkflowCase.ChunkStartedState ||
-            testWorkflowCase == TestWorkflowCase.ChunkContinuedState ||
-            testWorkflowCase == TestWorkflowCase.ResultStartedState ||
-            testWorkflowCase == TestWorkflowCase.ResultContinuedState
+            testWorkflowCase == TestWorkflowCase.LoadStartedState ||
+            testWorkflowCase == TestWorkflowCase.LoadContinuedState ||
+            testWorkflowCase == TestWorkflowCase.InitializeStartedState ||
+            testWorkflowCase == TestWorkflowCase.InitializeContinuedState
         )
         {
             timeoutMs = 1000;
@@ -533,115 +487,89 @@ public class TestPartialLoader
 
         _partialLoader.Reset();
 
-        switch(testWorkflowCase)
+        switch (testWorkflowCase)
         {
-            case TestWorkflowCase.ContunueNewState:
-                await _partialLoader.ContinueAsync();
+            case TestWorkflowCase.LoadNewState:
+                await _partialLoader.LoadAsync();
                 break;
-            case TestWorkflowCase.ChunkNewState:
-                cats.AddRange(_partialLoader.Chunk);
-                break;
-            case TestWorkflowCase.ResultNewState:
-                cats.AddRange(_partialLoader.Result);
-                break;
-            case TestWorkflowCase.StartStartedState:
-                auxTask = Task.Run(async () =>
+            case TestWorkflowCase.InitializeStartedState:
+                Task.Run(async () =>
                 {
+                    _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
+                    Task t = Task.Run(() => _partialLoader.LoadAsync());
                     await Task.Delay(timeoutMs / 2);
-                    await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
-                });
+                    _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
+                    await t;
+                }).Wait();
                 break;
-            case TestWorkflowCase.ContinueStartedState:
-                auxTask = Task.Run(async () =>
-                {
-                    await Task.Delay(timeoutMs / 2);
-                    await _partialLoader.ContinueAsync();
-                });
+            case TestWorkflowCase.InitializeInitializedState:
+                _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
+                _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
                 break;
-            case TestWorkflowCase.ChunkStartedState:
-                auxTask = Task.Run(async () =>
+            case TestWorkflowCase.LoadStartedState:
+                _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
                 {
-                    await Task.Delay(timeoutMs / 2);
-                    cats.AddRange(_partialLoader.Chunk);
+                    Timeout = TimeSpan.FromMilliseconds(timeoutMs),
                 });
-                break;
-            case TestWorkflowCase.ResultStartedState:
-                auxTask = Task.Run(async () =>
+                Task.Run(async () =>
                 {
+                    DateTime start = DateTime.Now;
+                    Task t = Task.Run(() => _partialLoader.LoadAsync());
                     await Task.Delay(timeoutMs / 2);
-                    cats.AddRange(_partialLoader.Result);
-                });
+                    await _partialLoader.LoadAsync();
+                    await t;
+                }).Wait();
                 break;
         }
-        await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
+        _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
         {
             Timeout = TimeSpan.FromMilliseconds(timeoutMs),
             Paging = paging
         });
+        await _partialLoader.LoadAsync();
         while (true)
         {
-            if(auxTask is not null && auxTask.IsFaulted)
-            {
-                throw auxTask.Exception!;
-            }
             if (_partialLoader.State != PartialLoaderState.Full)
             {
-                switch(testWorkflowCase)
+                switch (testWorkflowCase)
                 {
-                    case TestWorkflowCase.StartPartialState:
-                        await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
+                    case TestWorkflowCase.InitializePartialState:
+                        _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
                         break;
-                    case TestWorkflowCase.ResultPartialState:
-                        cats.AddRange(_partialLoader.Result);
-                        break;
-                    case TestWorkflowCase.ContinueContinuedState:
-                        auxTask = Task.Run(async () =>
+                    case TestWorkflowCase.LoadContinuedState:
+                        Task.Run(async () =>
                         {
+                            Task t = Task.Run(() => _partialLoader.LoadAsync());
                             await Task.Delay(timeoutMs / 2);
-                            await _partialLoader.ContinueAsync();
-                        });
+                            await _partialLoader.LoadAsync();
+                            await t;
+                        }).Wait();
                         break;
-                    case TestWorkflowCase.StartContinuedState:
-                        auxTask = Task.Run(async () =>
+                    case TestWorkflowCase.InitializeContinuedState:
+                        Task.Run(async () =>
                         {
+                            Task t = Task.Run(() => _partialLoader.LoadAsync());
                             await Task.Delay(timeoutMs / 2);
-                            await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
-                        });
-                        break;
-                    case TestWorkflowCase.ChunkContinuedState:
-                        auxTask = Task.Run(async () =>
-                        {
-                            await Task.Delay(timeoutMs / 2);
-                            cats.AddRange(_partialLoader.Chunk);
-                        });
-                        break;
-                    case TestWorkflowCase.ResultContinuedState:
-                        auxTask = Task.Run(async () =>
-                        {
-                            await Task.Delay(timeoutMs / 2);
-                            cats.AddRange(_partialLoader.Result);
-                        });
+                            _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
+                            await t;
+                        }).Wait();
                         break;
                 }
-                await _partialLoader.ContinueAsync();
+                await _partialLoader.LoadAsync();
             }
             else
             {
-                switch(testWorkflowCase)
+                switch (testWorkflowCase)
                 {
-                    case TestWorkflowCase.StartFullState:
-                        await _partialLoader.StartAsync(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
+                    case TestWorkflowCase.InitializeFullState:
+                        _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
                         break;
-                    case TestWorkflowCase.ContunueFullState:
-                        await _partialLoader.ContinueAsync();
+                    case TestWorkflowCase.LoadFullState:
+                        await _partialLoader.LoadAsync();
                         break;
                 }
                 break;
             }
-        }
-        if (auxTask is not null)
-        {
-            await auxTask;
         }
         Assert.Fail();
     }

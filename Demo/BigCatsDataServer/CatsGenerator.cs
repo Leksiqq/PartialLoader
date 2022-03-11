@@ -1,5 +1,6 @@
 ﻿using BigCatsDataContract;
 using Net.Leksi;
+using Net.Leksi.PartialLoader;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -90,7 +91,7 @@ namespace BigCatsDataServer
         /// <returns></returns>
         public static async Task GetCatsChunks(HttpContext context, int count, int timeout, int paging, double delay)
         {
-            IPartialLoader<Cat> partialLoader;
+            ChunksPartialLoader<Cat> partialLoader;
             string key = null!;
 
             // Получаем хранилище через механизм внедрения зависимостей.
@@ -99,18 +100,21 @@ namespace BigCatsDataServer
             if (!context.Request.Headers.ContainsKey(Constants.PartialLoaderSessionKey))
             {
                 // Если это первый запрос, то создаём PartialLoader и стартуем генерацию.
-                partialLoader = context.RequestServices.GetRequiredService<IPartialLoader<Cat>>();
-                await partialLoader.StartAsync(GenerateManyCats(count, delay), new PartialLoaderOptions { 
+                partialLoader = context.RequestServices.GetRequiredService<ChunksPartialLoader<Cat>>();
+                PartialLoaderOptions options = new PartialLoaderOptions
+                {
                     Timeout = TimeSpan.FromMilliseconds(timeout),
                     Paging = paging,
-                }).ConfigureAwait(false);
+                };
+                partialLoader.Initialize(GenerateManyCats(count, delay), options);
+                await partialLoader.LoadAsync().ConfigureAwait(false);
             } 
             else
             {
                 // Если это последующий запрос, то берём PartialLoader из хранилища и продолжаем генерацию.
                 key = context.Request.Headers[Constants.PartialLoaderSessionKey];
-                partialLoader = loaderStorage.Data[key];
-                await partialLoader.ContinueAsync().ConfigureAwait(false);
+                partialLoader = (ChunksPartialLoader<Cat>)loaderStorage.Data[key];
+                await partialLoader.LoadAsync().ConfigureAwait(false);
             }
 
             // Добавляем заголовок ответа, сигнализирующий, последняя это партия или нет.
@@ -141,7 +145,7 @@ namespace BigCatsDataServer
             jsonOptions.Converters.Add(new TransferJsonConverterFactory(context.RequestServices)
                 .AddTransient<ICat>());
 
-            await context.Response.WriteAsJsonAsync<List<Cat>>(partialLoader.Chunk, jsonOptions);
+            await context.Response.WriteAsJsonAsync<List<Cat>>(partialLoader.Chunks, jsonOptions);
         }
 
         /// <summary>
@@ -168,51 +172,52 @@ namespace BigCatsDataServer
         /// <returns></returns>
         public static async Task GetCatsJson(HttpContext context, int count, int timeout, int paging, double delay)
         {
-            IPartialLoader<Cat> partialLoader;
-            string key = null!;
+            //PartialLoader<Cat> partialLoader;
+            //string key = null!;
 
-            // Получаем хранилище через механизм внедрения зависимостей.
-            CatsLoaderStorage loaderStorage = context.RequestServices.GetRequiredService<CatsLoaderStorage>();
+            //// Получаем хранилище через механизм внедрения зависимостей.
+            //CatsLoaderStorage loaderStorage = context.RequestServices.GetRequiredService<CatsLoaderStorage>();
 
-            if (!context.Request.Headers.ContainsKey(Constants.PartialLoaderSessionKey))
-            {
-                // Если это первый запрос, то создаём PartialLoader и стартуем генерацию.
-                partialLoader = context.RequestServices.GetRequiredService<IPartialLoader<Cat>>();
-                partialLoader.Initialize(GenerateManyCats(count, delay), new PartialLoaderOptions
-                {
-                    Timeout = TimeSpan.FromMilliseconds(timeout),
-                    Paging = paging,
-                });
-                key = Guid.NewGuid().ToString();
-                loaderStorage.Data[key] = partialLoader;
-            }
-            else
-            {
-                // Если это последующий запрос, то берём PartialLoader из хранилища и продолжаем генерацию.
-                key = context.Request.Headers[Constants.PartialLoaderSessionKey];
-                partialLoader = loaderStorage.Data[key];
-            }
+            //if (!context.Request.Headers.ContainsKey(Constants.PartialLoaderSessionKey))
+            //{
+            //    // Если это первый запрос, то создаём PartialLoader и стартуем генерацию.
+            //    partialLoader = context.RequestServices.GetRequiredService<PartialLoader<Cat>>();
+            //    partialLoader.Initialize(GenerateManyCats(count, delay), new PartialLoaderOptions
+            //    {
+            //        Timeout = TimeSpan.FromMilliseconds(timeout),
+            //        Paging = paging,
+            //    });
+            //    key = Guid.NewGuid().ToString();
+            //    loaderStorage.Data[key] = partialLoader;
+            //}
+            //else
+            //{
+            //    // Если это последующий запрос, то берём PartialLoader из хранилища и продолжаем генерацию.
+            //    key = context.Request.Headers[Constants.PartialLoaderSessionKey];
+            //    partialLoader = loaderStorage.Data[key];
+            //}
 
-            if(partialLoader.State != PartialLoaderState.Full)
-            {
-                JsonSerializerOptions jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = false };
-                jsonOptions.Converters.Add((JsonConverter<StubForJson<Cat>>)partialLoader);
-                jsonOptions.Converters.Add(new TransferJsonConverterFactory(context.RequestServices)
-                    .AddTransient<ICat>());
+            //if(partialLoader.State != PartialLoaderState.Full)
+            //{
+            //    JsonSerializerOptions jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = false };
+            //    jsonOptions.Converters.Add((JsonConverter<StubForJson<Cat>>)partialLoader);
+            //    jsonOptions.Converters.Add(new TransferJsonConverterFactory(context.RequestServices)
+            //        .AddTransient<ICat>());
 
-                // Добавляем заголовок ответа с идентификатором серии запросов.
-                context.Response.Headers.Add(Constants.PartialLoaderSessionKey, key);
+            //    // Добавляем заголовок ответа с идентификатором серии запросов.
+            //    context.Response.Headers.Add(Constants.PartialLoaderSessionKey, key);
 
-                await context.Response.WriteAsJsonAsync<StubForJson<Cat>>(StubForJson<Cat>.Instance, jsonOptions);
-            } 
-            else
-            {
-                if (key is not null)
-                {
-                    loaderStorage.Data.Remove(key);
-                }
-                await Results.NoContent().ExecuteAsync(context);
-            }
+            //    await context.Response.WriteAsJsonAsync<StubForJson<Cat>>(StubForJson<Cat>.Instance, jsonOptions);
+            //} 
+            //else
+            //{
+            //    if (key is not null)
+            //    {
+            //        loaderStorage.Data.Remove(key);
+            //    }
+            //    await Results.NoContent().ExecuteAsync(context);
+            //}
+            await Results.NotFound().ExecuteAsync(context);
 
         }
     }

@@ -1,11 +1,12 @@
 using BigCatsDataContract;
 using BigCatsDataServer;
-using Net.Leksi;
+using Net.Leksi.PartialLoader;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<CatsLoaderStorage>();
-builder.Services.AddTransient(typeof(IPartialLoader<>), typeof(PartialLoader<>));
+builder.Services.AddTransient(typeof(PartialLoader<>));
+builder.Services.AddTransient(typeof(ChunksPartialLoader<>));
 
 var app = builder.Build();
 
