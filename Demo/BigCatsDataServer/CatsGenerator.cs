@@ -101,12 +101,11 @@ namespace BigCatsDataServer
             {
                 // Если это первый запрос, то создаём PartialLoader и стартуем генерацию.
                 partialLoader = context.RequestServices.GetRequiredService<ChunksPartialLoader<Cat>>();
-                PartialLoaderOptions options = new PartialLoaderOptions
-                {
-                    Timeout = TimeSpan.FromMilliseconds(timeout),
-                    Paging = paging,
-                };
-                partialLoader.Initialize(GenerateManyCats(count, delay), options);
+                partialLoader
+                    .SetTimeout(TimeSpan.FromMilliseconds(timeout))
+                    .SetPaging(paging)
+                    .SetDataProvider(GenerateManyCats(count, delay))
+                    ;
                 await partialLoader.LoadAsync().ConfigureAwait(false);
             } 
             else

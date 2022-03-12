@@ -44,10 +44,13 @@ public class ChunksResultPartialLoader<T>: ChunksPartialLoader<T>
     }
 
     /// <inheritdoc/>
-    public override void Initialize(IAsyncEnumerable<T> dataProvider, PartialLoaderOptions options)
+    public override async Task LoadAsync()
     {
-        base.Initialize(dataProvider, options);
-        AddUtilizer(Utilizer);
+        if (State is PartialLoaderState.New)
+        {
+            AddUtilizer(Utilizer);
+        }
+        await base.LoadAsync();
     }
 
     /// <inheritdoc/>

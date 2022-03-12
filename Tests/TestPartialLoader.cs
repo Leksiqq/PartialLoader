@@ -7,10 +7,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-<<<<<<< HEAD
-=======
-using System.Text.Json;
->>>>>>> c65842fbef6ce5dc50269db07c9d631f5e483d10
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -23,15 +19,9 @@ public class TestPartialLoader
     /// </summary>
     public enum TestWorkflowCase
     {
-        LoadNewState,
         LoadFullState,
         LoadStartedState,
         LoadContinuedState,
-        InitializeInitializedState,
-        InitializePartialState,
-        InitializeFullState,
-        InitializeStartedState,
-        InitializeContinuedState,
     }
 
     /// <summary xml:lang="ru">
@@ -40,7 +30,6 @@ public class TestPartialLoader
     public enum TestCancelationCase
     {
         CancelNewState,
-        CancelInitilizedState,
         CancelStartedState,
         CancelPartialState,
         CancelContinuedState,
@@ -129,15 +118,9 @@ public class TestPartialLoader
     /// </summary>
     /// <param xml:lang="ru" name="testWorkflowCase"><see cref="TestWorkflowCase"/></param>
     [Test]
-    [TestCase(TestWorkflowCase.LoadNewState)]
     [TestCase(TestWorkflowCase.LoadFullState)]
     [TestCase(TestWorkflowCase.LoadStartedState)]
     [TestCase(TestWorkflowCase.LoadContinuedState)]
-    [TestCase(TestWorkflowCase.InitializeInitializedState)]
-    [TestCase(TestWorkflowCase.InitializePartialState)]
-    [TestCase(TestWorkflowCase.InitializeFullState)]
-    [TestCase(TestWorkflowCase.InitializeStartedState)]
-    [TestCase(TestWorkflowCase.InitializeContinuedState)]
     public void TestWorkflow(TestWorkflowCase testWorkflowCase)
     {
         var ex = Assert.Throws<AggregateException>(
@@ -146,45 +129,19 @@ public class TestPartialLoader
         var ex1 = Assert.Catch(() => throw ex!.InnerException!);
         switch (testWorkflowCase)
         {
-            case TestWorkflowCase.LoadNewState:
-                Assert.Throws<InvalidOperationException>(() => throw ex1!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Initialized or Partial, present: New"));
-                break;
             case TestWorkflowCase.LoadFullState:
                 Assert.Throws<InvalidOperationException>(() => throw ex1!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Initialized or Partial, present: Full"));
+                Assert.That(ex1!.Message, Is.EqualTo("Expected State: New or Partial, present: Full"));
                 break;
             case TestWorkflowCase.LoadStartedState:
                 ex1 = Assert.Throws<AggregateException>(() => throw ex1!);
                 ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!.InnerException!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Initialized or Partial, present: Started"));
+                Assert.That(ex1!.Message, Is.EqualTo("Expected State: New or Partial, present: Started"));
                 break;
             case TestWorkflowCase.LoadContinuedState:
                 ex1 = Assert.Throws<AggregateException>(() => throw ex1!);
                 ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!.InnerException!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: Initialized or Partial, present: Continued"));
-                break;
-            case TestWorkflowCase.InitializeInitializedState:
-                ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: New, present: Initialized"));
-                break;
-            case TestWorkflowCase.InitializePartialState:
-                Assert.Throws<InvalidOperationException>(() => throw ex1!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: New, present: Partial"));
-                break;
-            case TestWorkflowCase.InitializeFullState:
-                Assert.Throws<InvalidOperationException>(() => throw ex1!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: New, present: Full"));
-                break;
-            case TestWorkflowCase.InitializeStartedState:
-                ex1 = Assert.Throws<AggregateException>(() => throw ex1!);
-                ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!.InnerException!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: New, present: Started"));
-                break;
-            case TestWorkflowCase.InitializeContinuedState:
-                ex1 = Assert.Throws<AggregateException>(() => throw ex1!);
-                ex1 = Assert.Throws<InvalidOperationException>(() => throw ex1!.InnerException!);
-                Assert.That(ex1!.Message, Is.EqualTo("Expected State: New, present: Continued"));
+                Assert.That(ex1!.Message, Is.EqualTo("Expected State: New or Partial, present: Continued"));
                 break;
             default:
                 Console.WriteLine(ex);
@@ -202,7 +159,6 @@ public class TestPartialLoader
     /// <param  xml:lang="ru" name="testCancelationCase"><see cref="TestCancelationCase"/></param>
     [Test]
     [TestCase(TestCancelationCase.CancelNewState)]
-    [TestCase(TestCancelationCase.CancelInitilizedState)]
     [TestCase(TestCancelationCase.CancelStartedState)]
     [TestCase(TestCancelationCase.CancelPartialState)]
     [TestCase(TestCancelationCase.CancelContinuedState)]
@@ -213,7 +169,6 @@ public class TestPartialLoader
         {
             case
                 TestCancelationCase.CancelNewState or
-                TestCancelationCase.CancelInitilizedState or
                 TestCancelationCase.CancelStartedState or
                 TestCancelationCase.CancelPartialState or
                 TestCancelationCase.CancelContinuedState or
@@ -252,18 +207,11 @@ public class TestPartialLoader
             }
             else
             {
-                _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
-                {
-                    Timeout = TimeSpan.FromMilliseconds(timeoutMs),
-                    Paging = paging,
-                    CancellationToken = cancellationTokenSource.Token
-                });
-                if (testCancelationCase == TestCancelationCase.CancelInitilizedState)
-                {
-                    cancellationTokenSource.Cancel();
-                    Assert.That(_partialLoader.State, Is.EqualTo(PartialLoaderState.Initialized));
-                    return;
-                }
+                _partialLoader.SetDataProvider(CatsGenerator.GenerateManyCats(count, delay))
+                    .SetTimeout(TimeSpan.FromMilliseconds(timeoutMs))
+                    .SetPaging(paging)
+                    .SetCancellationToken(cancellationTokenSource.Token)
+                    ;
                 Task t = _partialLoader.LoadAsync();
                 if (testCancelationCase == TestCancelationCase.CancelStartedState)
                 {
@@ -341,13 +289,10 @@ public class TestPartialLoader
         List<Cat> result = new List<Cat>();
         List<Cat> chunk = new List<Cat>();
 
-        PartialLoaderOptions options = new PartialLoaderOptions
-        {
-            Timeout = TimeSpan.FromMilliseconds(timeoutMs),
-            Paging = paging,
-        };
-
-        _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), options);
+        _partialLoader.SetDataProvider(CatsGenerator.GenerateManyCats(count, delay))
+            .SetTimeout(TimeSpan.FromMilliseconds(timeoutMs))
+            .SetPaging(paging)
+            ;
         _partialLoader.AddUtilizer(item =>
         {
             chunk.Add(item);
@@ -472,7 +417,6 @@ public class TestPartialLoader
 
         int delay = testWorkflowCase switch
         {
-            TestWorkflowCase.InitializeFullState => 0,
             TestWorkflowCase.LoadFullState => 0,
             _ => 10
         };
@@ -480,9 +424,7 @@ public class TestPartialLoader
 
         if (
             testWorkflowCase == TestWorkflowCase.LoadStartedState ||
-            testWorkflowCase == TestWorkflowCase.LoadContinuedState ||
-            testWorkflowCase == TestWorkflowCase.InitializeStartedState ||
-            testWorkflowCase == TestWorkflowCase.InitializeContinuedState
+            testWorkflowCase == TestWorkflowCase.LoadContinuedState
         )
         {
             timeoutMs = 1000;
@@ -493,28 +435,10 @@ public class TestPartialLoader
 
         switch (testWorkflowCase)
         {
-            case TestWorkflowCase.LoadNewState:
-                await _partialLoader.LoadAsync();
-                break;
-            case TestWorkflowCase.InitializeStartedState:
-                Task.Run(async () =>
-                {
-                    _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
-                    Task t = Task.Run(() => _partialLoader.LoadAsync());
-                    await Task.Delay(timeoutMs / 2);
-                    _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
-                    await t;
-                }).Wait();
-                break;
-            case TestWorkflowCase.InitializeInitializedState:
-                _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
-                _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
-                break;
             case TestWorkflowCase.LoadStartedState:
-                _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
-                {
-                    Timeout = TimeSpan.FromMilliseconds(timeoutMs),
-                });
+                _partialLoader.SetDataProvider(CatsGenerator.GenerateManyCats(count, delay))
+                    .SetTimeout(TimeSpan.FromMilliseconds(timeoutMs))
+                    ;
                 Task.Run(async () =>
                 {
                     DateTime start = DateTime.Now;
@@ -525,11 +449,10 @@ public class TestPartialLoader
                 }).Wait();
                 break;
         }
-        _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
-        {
-            Timeout = TimeSpan.FromMilliseconds(timeoutMs),
-            Paging = paging
-        });
+        _partialLoader.SetDataProvider(CatsGenerator.GenerateManyCats(count, delay))
+            .SetTimeout(TimeSpan.FromMilliseconds(timeoutMs))
+            .SetPaging(paging)
+            ;
         await _partialLoader.LoadAsync();
         while (true)
         {
@@ -537,24 +460,12 @@ public class TestPartialLoader
             {
                 switch (testWorkflowCase)
                 {
-                    case TestWorkflowCase.InitializePartialState:
-                        _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
-                        break;
                     case TestWorkflowCase.LoadContinuedState:
                         Task.Run(async () =>
                         {
                             Task t = Task.Run(() => _partialLoader.LoadAsync());
                             await Task.Delay(timeoutMs / 2);
                             await _partialLoader.LoadAsync();
-                            await t;
-                        }).Wait();
-                        break;
-                    case TestWorkflowCase.InitializeContinuedState:
-                        Task.Run(async () =>
-                        {
-                            Task t = Task.Run(() => _partialLoader.LoadAsync());
-                            await Task.Delay(timeoutMs / 2);
-                            _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
                             await t;
                         }).Wait();
                         break;
@@ -565,9 +476,6 @@ public class TestPartialLoader
             {
                 switch (testWorkflowCase)
                 {
-                    case TestWorkflowCase.InitializeFullState:
-                        _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions());
-                        break;
                     case TestWorkflowCase.LoadFullState:
                         await _partialLoader.LoadAsync();
                         break;

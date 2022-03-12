@@ -24,14 +24,6 @@ public enum PartialLoaderState
     /// </summary>
     New,
 
-    /// <summary>
-    /// <para xml:lang="ru">
-    /// Был вызван метод <see cref="PartialLoader{T}.Initialize(IAsyncEnumerable{T}, PartialLoaderOptions)"/>
-    /// </para>
-    /// <para xml:lang="en">
-    /// Method <see cref="PartialLoader{T}.Initialize(IAsyncEnumerable{T}, PartialLoaderOptions)"/> has been called
-    /// </para>    /// </summary>
-    Initialized,
 
     /// <summary>
     /// <para xml:lang="ru">

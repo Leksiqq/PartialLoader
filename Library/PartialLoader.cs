@@ -30,7 +30,9 @@ namespace Net.Leksi.PartialLoader;
 /// </typeparam>
 public class PartialLoader<T>
 {
-    private PartialLoaderOptions? _options = null;
+    private TimeSpan _timeout = TimeSpan.Zero;
+    private int _paging = 0;
+    private CancellationToken _cancellationToken = CancellationToken.None;
     private ConcurrentQueue<T> _queue = new();
     private Task _loadTask = Task.CompletedTask;
     private IAsyncEnumerable<T>? _dataProvider = null;
@@ -54,28 +56,221 @@ public class PartialLoader<T>
 
     /// <summary>
     /// <para xml:lang="ru">
-    /// Метод, устанавливающий поставщика данных и настройки для работы объекта
+    /// Свойство, описывающее значение интервала, по истечении которого происходит возврат 
+    /// в вызывающий код из метода <see cref="LoadAsync"/>.
+    /// Неположительное значение означает, что такой интервал не установлен.
     /// </para>
     /// <para xml:lang="en">
-    /// Method that sets the data provider and settings for the object to work
+    /// Property describing the value of the interval after which the return occurs
+    /// to the calling code from the <see cref="LoadAsync"/> method.
+    /// A non-positive value means that such an interval is not set.
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <para xml:lang="ru">
+    /// Выбрасывается при вызове в состоянии объекта, оличающемся от <see cref="PartialLoaderState.New"/>
+    /// </para>
+    /// <para xml:lang="en">
+    /// Thrown when called in an object state other than <see cref="PartialLoaderState.New"/> 
+    /// </para> 
+    /// </exception>
+    public TimeSpan Timeout
+    {
+        get
+        {
+            return _timeout;
+        }
+        set
+        {
+            SetTimeout(value);
+        }
+    }
+
+    /// <summary>
+    /// <para xml:lang="ru">
+    /// Свойство, описывающее количество полученных объектов, по достижении которого 
+    /// происходит возврат в вызывающий код из метода 
+    /// <see cref="LoadAsync"/>.
+    /// Неположительное значение означает, что соответствующее значение 
+    /// не установлено.
+    /// </para>
+    /// <para xml:lang="en">
+    /// A property that describes the number of received objects, upon reaching which
+    /// returns to the calling code from the method
+    /// <see cref="LoadAsync"/>.
+    /// A non-positive value means that the corresponding value
+    /// not installed.
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <para xml:lang="ru">
+    /// Выбрасывается при вызове в состоянии объекта, оличающемся от <see cref="PartialLoaderState.New"/>
+    /// </para>
+    /// <para xml:lang="en">
+    /// Thrown when called in an object state other than <see cref="PartialLoaderState.New"/> 
+    /// </para> 
+    /// </exception>
+    public int Paging
+    {
+        get
+        {
+            return _paging;
+        }
+        set
+        {
+            SetPaging(value);
+        }
+    }
+
+    /// <summary>
+    /// <para xml:lang="ru">
+    /// <see cref="CancellationToken"/> передаваемый из внешнего кода
+    /// </para>
+    /// <para xml:lang="en">
+    /// <see cref="CancellationToken"/> passed from external code
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <para xml:lang="ru">
+    /// Выбрасывается при вызове в состоянии объекта, оличающемся от <see cref="PartialLoaderState.New"/>
+    /// </para>
+    /// <para xml:lang="en">
+    /// Thrown when called in an object state other than <see cref="PartialLoaderState.New"/> 
+    /// </para> 
+    /// </exception>
+    public CancellationToken CancellationToken
+    {
+        get { 
+            return _cancellationToken; 
+        }
+        set
+        {
+            SetCancellationToken(value);
+        }
+    }
+
+    /// <summary>
+    /// <para xml:lang="ru">
+    /// Метод, устанавливающий <see cref="CancellationToken"/> передаваемый из внешнего кода
+    /// </para>
+    /// <para xml:lang="en">
+    /// Method that sets <see cref="CancellationToken"/> passed from external code
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <para xml:lang="ru">
+    /// Выбрасывается при вызове в состоянии объекта, оличающемся от <see cref="PartialLoaderState.New"/>
+    /// </para>
+    /// <para xml:lang="en">
+    /// Thrown when called in an object state other than <see cref="PartialLoaderState.New"/> 
+    /// </para> 
+    /// </exception>
+    /// <returns><see cref="PartialLoader{T}"/>
+    /// <para xml:lang="ru">
+    /// Возвращает сам объект для Flow-стиля
+    /// </para>
+    /// <para xml:lang="en">
+    /// Returns the object itself for the Flow style
+    /// </para>
+    /// </returns>
+    public PartialLoader<T> SetCancellationToken(CancellationToken cancellationToken)
+    {
+        if (State is not PartialLoaderState.New)
+        {
+            throw new InvalidOperationException($"Expected State: {PartialLoaderState.New}, present: {State}");
+        }
+        _cancellationToken = cancellationToken;
+        return this;
+    }
+
+    /// <summary>
+    /// <para xml:lang="ru">
+    /// Метод, устанавливающий количество полученных объектов, по достижении которого 
+    /// происходит возврат в вызывающий код из метода 
+    /// <see cref="LoadAsync"/>.
+    /// Неположительное значение означает, что соответствующее значение 
+    /// не установлено.
+    /// </para>
+    /// <para xml:lang="en">
+    /// Method that sets the number of received objects, upon reaching which
+    /// returns to the calling code from the method
+    /// <see cref="LoadAsync"/>.
+    /// A non-positive value means that the corresponding value
+    /// not installed.
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <para xml:lang="ru">
+    /// Выбрасывается при вызове в состоянии объекта, оличающемся от <see cref="PartialLoaderState.New"/>
+    /// </para>
+    /// <para xml:lang="en">
+    /// Thrown when called in an object state other than <see cref="PartialLoaderState.New"/> 
+    /// </para> 
+    /// </exception>
+    /// <returns><see cref="PartialLoader{T}"/>
+    /// <para xml:lang="ru">
+    /// Возвращает сам объект для Flow-стиля
+    /// </para>
+    /// <para xml:lang="en">
+    /// Returns the object itself for the Flow style
+    /// </para>
+    /// </returns>
+    public PartialLoader<T> SetPaging(int paging)
+    {
+        if (State is not PartialLoaderState.New)
+        {
+            throw new InvalidOperationException($"Expected State: {PartialLoaderState.New}, present: {State}");
+        }
+        _paging = paging;
+        return this;
+    }
+
+    /// <summary>
+    /// <para xml:lang="ru">
+    /// Метод, устанавливающий значение интервала, по истечении которого происходит возврат 
+    /// в вызывающий код из метода <see cref="LoadAsync"/>.
+    /// Неположительное значение означает, что такой интервал не установлен.
+    /// </para>
+    /// <para xml:lang="en">
+    /// Method that sets the value of the interval after which the return occurs
+    /// to the calling code from the <see cref="LoadAsync"/> method.
+    /// A non-positive value means that such an interval is not set.
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <para xml:lang="ru">
+    /// Выбрасывается при вызове в состоянии объекта, оличающемся от <see cref="PartialLoaderState.New"/>
+    /// </para>
+    /// <para xml:lang="en">
+    /// Thrown when called in an object state other than <see cref="PartialLoaderState.New"/> 
+    /// </para> 
+    /// </exception>
+    /// <returns><see cref="PartialLoader{T}"/>
+    /// <para xml:lang="ru">
+    /// Возвращает сам объект для Flow-стиля
+    /// </para>
+    /// <para xml:lang="en">
+    /// Returns the object itself for the Flow style
+    /// </para>
+    /// </returns>
+    public PartialLoader<T> SetTimeout(TimeSpan timeout)
+    {
+        if (State is not PartialLoaderState.New)
+        {
+            throw new InvalidOperationException($"Expected State: {PartialLoaderState.New}, present: {State}");
+        }
+        _timeout = timeout;
+        return this;
+    }
+
+    /// <summary>
+    /// <para xml:lang="ru">
+    /// Метод, устанавливающий поставщика данных
+    /// </para>
+    /// <para xml:lang="en">
+    /// Method that sets the data provider
     /// </para> 
     /// </summary>
-    /// <param name="dataProvider">
-    /// <para xml:lang="ru">
-    /// Поставщик данных. <see cref="IAsyncEnumerable{T}"/>
-    /// </para>
-    /// <para xml:lang="en">
-    /// Data provider. <see cref="IAsyncEnumerable{T}"/>
-    /// </para> 
-    /// </param>
-    /// <param name="options">
-    /// <para xml:lang="ru">
-    /// Настройки. <see cref="PartialLoaderOptions"/>
-    /// </para>
-    /// <para xml:lang="en">
-    /// Options settings. <see cref="PartialLoaderOptions"/>
-    /// </para> 
-    /// </param>
     /// <exception cref="InvalidOperationException">
     /// <para xml:lang="ru">
     /// Выбрасывается при вызове в состоянии объекта, оличающемся от <see cref="PartialLoaderState.New"/>
@@ -85,31 +280,60 @@ public class PartialLoader<T>
     /// </para> 
     /// </exception>
     /// <exception cref="ArgumentNullException"></exception>
-    public virtual void Initialize(IAsyncEnumerable<T> dataProvider, PartialLoaderOptions options)
+    /// <returns><see cref="PartialLoader{T}"/>
+    /// <para xml:lang="ru">
+    /// Возвращает сам объект для Flow-стиля
+    /// </para>
+    /// <para xml:lang="en">
+    /// Returns the object itself for the Flow style
+    /// </para>
+    /// </returns>
+    public PartialLoader<T> SetDataProvider(IAsyncEnumerable<T> dataProvider)
     {
-        if (options is null || dataProvider is null)
-        {
-            throw new ArgumentNullException(options is null ? nameof(options) : nameof(dataProvider));
-        }
         if (State is not PartialLoaderState.New)
         {
             throw new InvalidOperationException($"Expected State: {PartialLoaderState.New}, present: {State}");
         }
+        if (dataProvider is null)
+        {
+            throw new ArgumentNullException(nameof(dataProvider));
+        }
         _dataProvider = dataProvider;
-        _options = options;
-        State = PartialLoaderState.Initialized;
+        return this;
     }
 
     /// <summary>
     /// <para xml:lang="ru">
     /// Добавляет новый "утилизатор" в цепочка применяемых к каждому загруженному объекту "утилизаторов". 
+    /// </para>
     /// <para xml:lang="en">
     /// Adds a new "utilizer" to the chain of "utilizers" applied to each loaded object.
     /// </para>
     /// </summary>
-    public void AddUtilizer(Func<T, T> utilizer)
+    /// <exception cref="InvalidOperationException">
+    /// <para xml:lang="ru">
+    /// Выбрасывается при вызове в состоянии объекта, оличающемся от <see cref="PartialLoaderState.New"/>
+    /// </para>
+    /// <para xml:lang="en">
+    /// Thrown when called in an object state other than <see cref="PartialLoaderState.New"/> 
+    /// </para> 
+    /// </exception>
+    /// <returns><see cref="PartialLoader{T}"/>
+    /// <para xml:lang="ru">
+    /// Возвращает сам объект для Flow-стиля
+    /// </para>
+    /// <para xml:lang="en">
+    /// Returns the object itself for the Flow style
+    /// </para>
+    /// </returns>
+    public PartialLoader<T> AddUtilizer(Func<T, T> utilizer)
     {
+        if (State is not PartialLoaderState.New)
+        {
+            throw new InvalidOperationException($"Expected State: {PartialLoaderState.New}, present: {State}");
+        }
         _utilizers.Add(utilizer);
+        return this;
     }
 
 
@@ -136,20 +360,20 @@ public class PartialLoader<T>
     /// <exception cref="InvalidOperationException">
     /// <para xml:lang="ru">
     /// Выбрасывается при вызове в состоянии объекта, оличающемся от
-    /// <see cref="PartialLoaderState.Initialized"/> и <see cref="PartialLoaderState.Partial"/>
+    /// <see cref="PartialLoaderState.New"/> и <see cref="PartialLoaderState.Partial"/>
     /// </para>
     /// <para xml:lang="en">
     /// Thrown when called in an object state other than
-    /// <see cref="PartialLoaderState.Initialized"/> and <see cref="PartialLoaderState.Partial"/>
+    /// <see cref="PartialLoaderState.New"/> and <see cref="PartialLoaderState.Partial"/>
     /// </para>    
     /// </exception>
     public virtual async Task LoadAsync()
     {
-        if (State is not PartialLoaderState.Initialized && State is not PartialLoaderState.Partial)
+        if (State is not PartialLoaderState.New && State is not PartialLoaderState.Partial)
         {
-            throw new InvalidOperationException($"Expected State: {PartialLoaderState.Initialized} or {PartialLoaderState.Partial}, present: {State}");
+            throw new InvalidOperationException($"Expected State: {PartialLoaderState.New} or {PartialLoaderState.Partial}, present: {State}");
         }
-        if(State is PartialLoaderState.Initialized)
+        if (State is PartialLoaderState.New)
         {
             State = PartialLoaderState.Started;
             PrepareToExecute();
@@ -184,8 +408,10 @@ public class PartialLoader<T>
         State = PartialLoaderState.New;
         _queue.Clear();
         _dataProvider = null;
-        _options = null;
         _utilizers.Clear();
+        _timeout = TimeSpan.Zero;
+        _paging = 0;
+        _cancellationToken = CancellationToken.None;
     }
 
     /// <summary>
@@ -203,7 +429,7 @@ public class PartialLoader<T>
 
     private void PrepareToExecute()
     {
-        _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_options!.CancellationToken);
+        _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_cancellationToken);
         if (_cancellationTokenSource.Token.IsCancellationRequested)
         {
             State = PartialLoaderState.Canceled;
@@ -214,7 +440,7 @@ public class PartialLoader<T>
 
         _loadTask = Task.Run(async () =>
         {
-            await foreach (T item in _dataProvider!.ConfigureAwait(_options.ConfigureAwait))
+            await foreach (T item in _dataProvider!.ConfigureAwait(false))
             {
                 if (_cancellationTokenSource.Token.IsCancellationRequested)
                 {
@@ -239,8 +465,8 @@ public class PartialLoader<T>
 
         while (!_loadTask.IsCompleted)
         {
-            TimeSpan limeLeft = _options!.Timeout.Ticks <= 0 ?
-                TimeSpan.MaxValue : _options.Timeout - (DateTimeOffset.Now - _start);
+            TimeSpan limeLeft = _timeout.Ticks <= 0 ?
+                TimeSpan.MaxValue : _timeout - (DateTimeOffset.Now - _start);
             if (limeLeft == TimeSpan.MaxValue || limeLeft.TotalMilliseconds > 0)
             {
                 try
@@ -256,11 +482,11 @@ public class PartialLoader<T>
                 }
                 catch (OperationCanceledException)
                 {
-                    await _loadTask.ConfigureAwait(_options.ConfigureAwait);
+                    await _loadTask.ConfigureAwait(false);
                 }
                 if (_cancellationTokenSource!.Token.IsCancellationRequested)
                 {
-                    await _loadTask.ConfigureAwait(_options.ConfigureAwait);
+                    await _loadTask.ConfigureAwait(false);
                     State = PartialLoaderState.Canceled;
                     return;
                 }
@@ -273,7 +499,7 @@ public class PartialLoader<T>
             {
                 if (_cancellationTokenSource!.Token.IsCancellationRequested)
                 {
-                    await _loadTask.ConfigureAwait(_options.ConfigureAwait);
+                    await _loadTask.ConfigureAwait(false);
                     State = PartialLoaderState.Canceled;
                     return;
                 }
@@ -314,7 +540,7 @@ public class PartialLoader<T>
 
                 _count++;
 
-                if (_options.Paging > 0 && _count >= _options.Paging || _options.Timeout.Ticks > 0 && (_options.Timeout - (DateTimeOffset.Now - _start)).Ticks <= 0)
+                if (_paging > 0 && _count >= _paging || _timeout.Ticks > 0 && (_timeout - (DateTimeOffset.Now - _start)).Ticks <= 0)
                 {
                     State = PartialLoaderState.Partial;
                     return true;
