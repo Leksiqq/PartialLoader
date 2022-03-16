@@ -2,11 +2,14 @@ namespace Net.Leksi.PartialLoader;
 
 using BigCatsDataContract;
 using BigCatsDataServer;
+using Net.Leksi.TransferJsonConverter;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -97,19 +100,19 @@ public class TestPartialLoader
     ///<param xml:lang="ru" name="paging">Значение пейджинга - желаемого размера очередной порции (chunk) котиков в штуках.</param>
     ///<param xml:lang="ru" name="delay">Значение времени, необходимого для получения одного котика в миллисекундах.</param>
     ///<param xml:lang="ru" name="count">Общее количество котиков.</param>
-    //[Test]
-    //[TestCase(100, 0, 10, 1001, false)]
-    //[TestCase(-1, 4, 0, 1001, false)]
-    //[TestCase(100, 4, 10, 1001, false)]
-    //[TestCase(100, 11, 10, 1001, false)]
-    //[TestCase(100, 0, 10, 1001, true)]
-    //[TestCase(-1, 4, 0, 1001, true)]
-    //[TestCase(100, 4, 10, 1001, true)]
-    //[TestCase(100, 11, 10, 1001, true)]
-    //public void TestSerializeCats(int timeoutMs, int paging, int delay, int count, bool storeResult)
-    //{
-    //    RunSerializeCats(timeoutMs, paging, delay, count, storeResult).Wait();
-    //}
+    [Test]
+    [TestCase(100, 0, 10, 1001, false)]
+    [TestCase(-1, 4, 0, 1001, false)]
+    [TestCase(100, 4, 10, 1001, false)]
+    [TestCase(100, 11, 10, 1001, false)]
+    [TestCase(100, 0, 10, 1001, true)]
+    [TestCase(-1, 4, 0, 1001, true)]
+    [TestCase(100, 4, 10, 1001, true)]
+    [TestCase(100, 11, 10, 1001, true)]
+    public void TestSerializeCats(int timeoutMs, int paging, int delay, int count, bool storeResult)
+    {
+        RunSerializeCats(timeoutMs, paging, delay, count, storeResult).Wait();
+    }
 
     /// <summary xml:lang="ru">
     /// Тестируем класс <see cref="Btcom.Server.PartialLoader{T}"/>. Тестируем все варианты неправильных последовательностей. 
@@ -296,14 +299,12 @@ public class TestPartialLoader
         _partialLoader.AddUtilizer(item =>
         {
             chunk.Add(item);
-            return item;
         });
         if (storeResult)
         {
             _partialLoader.AddUtilizer(item =>
             {
                 result.Add(item);
-                return item;
             });
         }
         await _partialLoader.LoadAsync();
@@ -322,6 +323,17 @@ public class TestPartialLoader
                     // 2), 3)
                     Assert.That(chunkCount, Is.EqualTo(paging));
                 }
+                _partialLoader.AddUtilizer(item =>
+                {
+                    chunk.Add(item);
+                });
+                if (storeResult)
+                {
+                    _partialLoader.AddUtilizer(item =>
+                    {
+                        result.Add(item);
+                    });
+                }
                 await _partialLoader.LoadAsync();
             }
             else
@@ -339,77 +351,93 @@ public class TestPartialLoader
         Assert.That(cats.Zip(result).Zip(_catsList, (x, y) => x.First.Name == y.Name && x.Second.Name == y.Name).All(x => x));
     }
 
-    //private async Task RunSerializeCats(int timeoutMs, int paging, int delay, int count, bool storeResult)
-    //{
-    //    if (timeoutMs != -1 && delay == 0)
-    //    {
-    //        Assert.Fail("Если установлен таймаут, задержка должна быть больше 0!");
-    //    }
-    //    List<Cat> cats = new List<Cat>();
+    private async Task RunSerializeCats(int timeoutMs, int paging, int delay, int count, bool storeResult)
+    {
+        List<Cat> result = new List<Cat>();
+        List<Cat> chunk = new List<Cat>();
 
-    //    for (int i = _catsList.Count; i < count; i++)
-    //    {
-    //        _catsList.Add(new Cat { Name = $"{CatsGenerator.CatNamePrefix}{i + 1}" });
-    //    }
+        if (timeoutMs != -1 && delay == 0)
+        {
+            Assert.Fail("Если установлен таймаут, задержка должна быть больше 0!");
+        }
+        List<Cat> cats = new List<Cat>();
 
-    //    _partialLoader.Reset();
+        for (int i = _catsList.Count; i < count; i++)
+        {
+            _catsList.Add(new Cat { Name = $"{CatsGenerator.CatNamePrefix}{i + 1}" });
+        }
 
-    //    JsonSerializerOptions jsonOptions = new();
-    //    jsonOptions.Converters.Add(_partialLoader);
-    //    jsonOptions.Converters.Add(new TransferJsonConverterFactory(null)
-    //        .AddTransient<ICat>());
-    //    _partialLoader.Initialize(CatsGenerator.GenerateManyCats(count, delay), new PartialLoaderOptions
-    //    {
-    //        Timeout = TimeSpan.FromMilliseconds(timeoutMs),
-    //        Paging = paging,
-    //        StoreResult = storeResult
-    //    });
+        _partialLoader.Reset();
 
-    //    do
-    //    {
-    //        MemoryStream memoryStream = new MemoryStream();
-    //        await JsonSerializer.SerializeAsync<StubForJson<Cat>>(memoryStream, StubForJson<Cat>.Instance, jsonOptions);
+        JsonSerializerOptions jsonOptionsSerialize = new();
+        JsonSerializerOptions jsonOptionsDeserialize = new();
 
-    //        memoryStream.Position = 0;
-    //        using var reader = new StreamReader(memoryStream);
-    //        string json = reader.ReadToEnd();
+        TransferJsonConverterFactory deserializer = new(null);
+        deserializer.AddTransient<Cat>();
+        deserializer.UseEndOfDataNull = true;
 
-    //        List<Cat> chunk = JsonSerializer.Deserialize<List<Cat>>(json);
-    //        if(chunk.Last() is null)
-    //        {
-    //            chunk.RemoveAt(chunk.Count - 1);
-    //        }
-    //        int chunkCount = chunk.Count;
+        jsonOptionsSerialize.Converters.Add(new PartialLoadingJsonSerializer<Cat>(_partialLoader));
+        jsonOptionsDeserialize.Converters.Add(deserializer);
+        _partialLoader.SetDataProvider(CatsGenerator.GenerateManyCats(count, delay))
+            .SetTimeout(TimeSpan.FromMilliseconds(timeoutMs))
+            .SetPaging(paging);
 
-    //        cats.AddRange(chunk);
+        do
+        {
+            _partialLoader.AddUtilizer(item =>
+            {
+                chunk.Add(item);
+            });
+            if (storeResult)
+            {
+                _partialLoader.AddUtilizer(item =>
+                {
+                    result.Add(item);
+                });
+            }
+            MemoryStream memoryStream = new MemoryStream();
+            await JsonSerializer.SerializeAsync(memoryStream, JsonTypeStub<Cat>.Instance, jsonOptionsSerialize);
 
-    //        if (timeoutMs != -1 && (paging == 0 || paging > timeoutMs / delay))
-    //        {
-    //            // 1), 3)
-    //            Assert.That(chunkCount > 0);
-    //        }
-    //        if (_partialLoader.State == PartialLoaderState.Partial)
-    //        {
-    //            if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
-    //            {
-    //                // 2), 3)
-    //                Assert.That(chunkCount == paging);
-    //            }
-    //        }
-    //        else
-    //        {
-    //            if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
-    //            {
-    //                // 2), 3)
-    //                Assert.That(chunkCount == (count % paging == 0 ? paging : count % paging));
-    //            }
-    //        }
-    //    }
-    //    while (_partialLoader.State != PartialLoaderState.Full);
+            memoryStream.Position = 0;
+            using var reader = new StreamReader(memoryStream);
+            string json = reader.ReadToEnd();
 
-    //    Assert.That(cats.Count == count && ((storeResult && cats.Count == _partialLoader.Result.Count) || (!storeResult && _partialLoader.Result.Count == 0)));
-    //    Assert.That(cats.Zip(_partialLoader.Result).Zip(_catsList, (x, y) => x.First.Name == y.Name && x.Second.Name == y.Name).All(x => x));
-    //}
+            List<Cat> chunk1 = new();
+            deserializer.Target = chunk1;
+            
+            JsonSerializer.Deserialize(json, typeof(RewritableListStub<Cat>), jsonOptionsDeserialize);
+
+            int chunkCount = chunk1.Count;
+
+            cats.AddRange(chunk1);
+
+            if (timeoutMs != -1 && (paging == 0 || paging > timeoutMs / delay))
+            {
+                // 1), 3)
+                Assert.That(chunkCount > 0);
+            }
+            if (_partialLoader.State == PartialLoaderState.Partial)
+            {
+                if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
+                {
+                    // 2), 3)
+                    Assert.That(chunkCount == paging);
+                }
+            }
+            else
+            {
+                if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
+                {
+                    // 2), 3)
+                    Assert.That(chunkCount == (count % paging == 0 ? paging : count % paging));
+                }
+            }
+        }
+        while (_partialLoader.State != PartialLoaderState.Full);
+
+        Assert.That(cats.Count == count && ((storeResult && cats.Count == result.Count) || (!storeResult && result.Count == 0)));
+        Assert.That(cats.Zip(result).Zip(_catsList, (x, y) => x.First.Name == y.Name && x.Second.Name == y.Name).All(x => x));
+    }
 
     private async Task RunWorkflow(TestWorkflowCase testWorkflowCase, int timeoutMs = -1, int paging = 4)
     {

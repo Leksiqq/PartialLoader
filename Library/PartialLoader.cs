@@ -28,7 +28,7 @@ namespace Net.Leksi.PartialLoader;
 /// <para xml:lang="ru">Тип загружаемых объектов</para>
 /// <para xml:lang="en">Type of loaded objects</para>
 /// </typeparam>
-public class PartialLoader<T>
+public class PartialLoader<T> where T: class
 {
     private TimeSpan _timeout = TimeSpan.Zero;
     private int _paging = 0;
@@ -40,7 +40,7 @@ public class PartialLoader<T>
     private CancellationTokenSource? _cancellationTokenSource = null;
     DateTimeOffset _start;
     int _count;
-    private readonly List<Func<T, T>> _utilizers = new();
+    private readonly List<Action<T>> _utilizers = new();
 
 
 
@@ -305,9 +305,11 @@ public class PartialLoader<T>
     /// <summary>
     /// <para xml:lang="ru">
     /// Добавляет новый "утилизатор" в цепочка применяемых к каждому загруженному объекту "утилизаторов". 
+    /// Следует обратить внимание, что цепочка "утилизаторов" очищается после каждого вызова  <see cref="LoadAsync"/>
     /// </para>
     /// <para xml:lang="en">
     /// Adds a new "utilizer" to the chain of "utilizers" applied to each loaded object.
+    /// Note that the "utilizers" chain is cleared after each call to <see cref="LoadAsync"/>
     /// </para>
     /// </summary>
     /// <exception cref="InvalidOperationException">
@@ -326,16 +328,15 @@ public class PartialLoader<T>
     /// Returns the object itself for the Flow style
     /// </para>
     /// </returns>
-    public PartialLoader<T> AddUtilizer(Func<T, T> utilizer)
+    public PartialLoader<T> AddUtilizer(Action<T> utilizer)
     {
-        if (State is not PartialLoaderState.New)
+        if (State is not PartialLoaderState.New && State is not PartialLoaderState.Partial)
         {
-            throw new InvalidOperationException($"Expected State: {PartialLoaderState.New}, present: {State}");
+            throw new InvalidOperationException($"Expected State: {PartialLoaderState.New} or {PartialLoaderState.Partial}, present: {State}");
         }
         _utilizers.Add(utilizer);
         return this;
     }
-
 
     /// <summary>
     /// <para xml:lang="ru">
@@ -369,6 +370,10 @@ public class PartialLoader<T>
     /// </exception>
     public virtual async Task LoadAsync()
     {
+        if (_dataProvider is null)
+        {
+            throw new ArgumentNullException("dataProvider");
+        }
         if (State is not PartialLoaderState.New && State is not PartialLoaderState.Partial)
         {
             throw new InvalidOperationException($"Expected State: {PartialLoaderState.New} or {PartialLoaderState.Partial}, present: {State}");
@@ -383,6 +388,7 @@ public class PartialLoader<T>
             State = PartialLoaderState.Continued;
         }
         await ExecuteAsync();
+        _utilizers.Clear();
     }
 
     /// <summary>
@@ -408,7 +414,6 @@ public class PartialLoader<T>
         State = PartialLoaderState.New;
         _queue.Clear();
         _dataProvider = null;
-        _utilizers.Clear();
         _timeout = TimeSpan.Zero;
         _paging = 0;
         _cancellationToken = CancellationToken.None;
@@ -490,7 +495,7 @@ public class PartialLoader<T>
                     State = PartialLoaderState.Canceled;
                     return;
                 }
-                if (UtilizeAndPossiblySetPArtialStateAndReturn())
+                if (UtilizeAndPossiblySetPartialStateAndReturn())
                 {
                     return;
                 }
@@ -511,7 +516,7 @@ public class PartialLoader<T>
                 _manualReset.Reset();
             }
         }
-        if (UtilizeAndPossiblySetPArtialStateAndReturn())
+        if (UtilizeAndPossiblySetPartialStateAndReturn())
         {
             return;
         }
@@ -527,15 +532,15 @@ public class PartialLoader<T>
         State = PartialLoaderState.Full;
     }
 
-    private bool UtilizeAndPossiblySetPArtialStateAndReturn()
+    private bool UtilizeAndPossiblySetPartialStateAndReturn()
     {
         while (_queue.TryDequeue(out T? item))
         {
             if (item is not null)
             {
-                foreach (Func<T, T> utilizer in _utilizers)
+                foreach (Action<T> utilizer in _utilizers)
                 {
-                    item = utilizer.Invoke(item);
+                    utilizer.Invoke(item);
                 }
 
                 _count++;

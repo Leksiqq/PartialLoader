@@ -2,16 +2,16 @@
 
 /// <summary>
 /// <para xml:lang="ru">
-/// Класс <see cref="PartialLoader{T}"/>, для загрузки каждой порции объектов в свойство <see cref="Chunks"/>
+/// Класс <see cref="PartialLoader{T}"/>, для загрузки каждой порции объектов в свойство <see cref="Chunk"/>
 /// </para>
 /// <para xml:lang="en">
-/// Class <see cref="PartialLoader{T}"/>, for loading each portion of objects into the property <see cref="Chunks"/>
+/// Class <see cref="PartialLoader{T}"/>, for loading each portion of objects into the property <see cref="Chunk"/>
 /// </para>
 /// </summary>
 /// <inheritdoc/>
-public class ChunksPartialLoader<T> : PartialLoader<T>
+public class ChunkPartialLoader<T> : PartialLoader<T> where T : class
 {
-    private readonly List<T> _chunks = new();
+    private readonly List<T> _chunk = new();
 
     /// <summary>
     /// <para xml:lang="ru">
@@ -31,7 +31,7 @@ public class ChunksPartialLoader<T> : PartialLoader<T>
     /// <see cref="PartialLoaderState.Partial"/> and <see cref="PartialLoaderState.Full"/>
     /// </para>    
     /// </exception>
-    public List<T> Chunks
+    public List<T> Chunk
     {
         get
         {
@@ -39,7 +39,7 @@ public class ChunksPartialLoader<T> : PartialLoader<T>
             {
                 throw new InvalidOperationException($"Expected State: {PartialLoaderState.Partial} or {PartialLoaderState.Full}, present: {State}");
             }
-            return _chunks;
+            return _chunk;
         }
     }
 
@@ -47,18 +47,14 @@ public class ChunksPartialLoader<T> : PartialLoader<T>
     /// <inheritdoc/>
     public override async Task LoadAsync()
     {
-        if(State is PartialLoaderState.New)
-        {
-            AddUtilizer(Utilizer);
-        }
-        _chunks.Clear();
+        AddUtilizer(Utilizer);
+        _chunk.Clear();
         await base.LoadAsync();
     }
 
-    private T Utilizer(T item)
+    private void Utilizer(T item)
     {
-        _chunks.Add(item);
-        return item;
+        _chunk.Add(item);
     }
 
 }

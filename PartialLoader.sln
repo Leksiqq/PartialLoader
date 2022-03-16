@@ -19,6 +19,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Library", "Library", "{6CF1
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{66FF0B88-8107-453B-89D3-539F128A8C04}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "htdocs", "htdocs", "{AB8998E1-42A3-40ED-A5C1-879846842A87}"
+	ProjectSection(SolutionItems) = preProject
+		htdocs\index.html = htdocs\index.html
+		htdocs\index_en.html = htdocs\index_en.html
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

@@ -6,7 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<CatsLoaderStorage>();
 builder.Services.AddTransient(typeof(PartialLoader<>));
-builder.Services.AddTransient(typeof(ChunksPartialLoader<>));
+builder.Services.AddTransient(typeof(ChunkPartialLoader<>));
 
 var app = builder.Build();
 

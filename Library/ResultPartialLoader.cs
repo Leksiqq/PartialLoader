@@ -9,11 +9,11 @@
 /// </para>
 /// </summary>
 /// <inheritdoc/>
-public class ResultPartialLoader<T> : PartialLoader<T>
+public class ResultPartialLoader<T> : PartialLoader<T> where T : class
 {
     private readonly List<T> _result = new();
 
-    /// <inheritdoc cref="ChunksResultPartialLoader{T}"/>
+    /// <inheritdoc cref="ChunkResultPartialLoader{T}"/>
     public List<T> Result
     {
         get
@@ -29,10 +29,7 @@ public class ResultPartialLoader<T> : PartialLoader<T>
     /// <inheritdoc/>
     public override async Task LoadAsync()
     {
-        if (State is PartialLoaderState.New)
-        {
-            AddUtilizer(Utilizer);
-        }
+        AddUtilizer(Utilizer);
         await base.LoadAsync();
     }
 
@@ -43,10 +40,9 @@ public class ResultPartialLoader<T> : PartialLoader<T>
         _result.Clear();
     }
 
-    private T Utilizer(T item)
+    private void Utilizer(T item)
     {
         _result.Add(item);
-        return item;
     }
 
 }

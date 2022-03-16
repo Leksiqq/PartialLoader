@@ -1,11 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <GenerateDocumentationFile>True</GenerateDocumentationFile>
-    <RootNamespace>Net.Leksi.PartialLoader</RootNamespace>
-  </PropertyGroup>
-	
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<PackageId>Net.Leksi.$(AssemblyName)</PackageId>
+		<Authors>Alexey leksiq Zakharov</Authors>
+		<Copyright>2022-03-10</Copyright>
+		<VersionPrefix>1.1.0</VersionPrefix>
+		<PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<Description>
+			The library is designed to load a large number of objects from the source in batches. The chunk size is limited by a timeout and/or a fixed size.
+		</Description>
+		<GenerateDocumentationFile>True</GenerateDocumentationFile>
+		<RepositoryUrl>https://sourceforge.net/p/partialloader/code</RepositoryUrl>
+		<PackageTags>JSON;ASP.NET</PackageTags>
+		<PackageProjectUrl>https://partialloader.sourceforge.io/</PackageProjectUrl>
+		<RootNamespace>Net.Leksi.PartialLoader</RootNamespace>
+	</PropertyGroup>
+
 </Project>

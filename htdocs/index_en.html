@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8" />
+    <title></title>
+</head>
+<body>
+    <h1>PartialLoader</h1>
+    <a href="index.html">на русском</a>
+    <p>
+        The library is designed to load a large number of objects from the source in batches.
+        The chunk size is limited by a timeout and/or a fixed size.
+    </p>
+    <h3>How to use it</h3>
+
+    <p>
+        Let's create an instance:
+    </p>
+    <code>
+        <pre>
+            PartialLoader&lt;Cat&gt; partialLoader = new();
+        </pre>
+    </code>
+    <p>
+        Set the data source (mandatory):
+    </p>
+    <code>
+        <pre>
+            public async IAsyncEnumerable&lt;Cat&gt; GenerateManyCats()
+            {
+                ...
+            }
+
+            partialLoader.SetDataProvider(GenerateManyCats());
+        </pre>
+    </code>
+    <p>
+        Set the timeout value (default - no timeout):
+    </p>
+    <code>
+        <pre>
+            partialLoader.SetTimeout(TimeSpan.FromMilliseconds(200));
+        </pre>
+    </code>
+    <p>
+        Set the portion size (default - unlimited):
+    </p>
+    <code>
+        <pre>
+            partialLoader.SetPaging(5000);
+        </pre>
+    </code>
+    <p>
+        Before <b>each</b> request for the next piece of data, install one or more "utilizers" - <code>Action&lt;Cat&gt;</code>,
+        which will somehow process each received object:
+    </p>
+    <code>
+        <pre>
+            partialLoader
+                .AddUtilizer(item => ...)
+                .AddUtilizer(item => ...)
+                ;
+        </pre>
+    </code>
+    <p>
+        The need to re-install "utilizers" each time is due to the fact that this class should normally be used on an ASP.NET server. The instance is needed
+        save between requests, but the context will not be saved, and "utilizers" will most likely depend on the context.
+    </p>
+    <p>
+        Let's ask for another batch:
+    </p>
+    <code>
+        <pre>
+            await partialLoader.LoadAsync();
+        </pre>
+    </code>
+    <p>
+        Let's check if all the data has been received:
+    </p>
+    <code>
+        <pre>
+            if(partialLoader.State is PartialLoaderState.Partial)
+            {
+                ... // Not all
+            }
+            else
+            {
+                ... // Everything
+            }
+        </pre>
+    </code>
+    <p>
+        If not all, it will install the "utilizers" again and request the next portion.
+    </p>
+
+    <h3>Descendants of <code>PartialLoader&lt;T&gt;</code> with special behavior and helper classes</h3>
+    <p>
+        <code>ChunkPartialLoader&lt;T&gt;</code> - saves the next chunk in a list accessible via the <code>Chunk</code> property.
+    </p>
+    <code>
+        <pre>
+            do {
+                await partialLoader.LoadAsync();
+                List&lt;Cat&gt; moreCats = partialLoader.Chunk;
+            }
+            while(partialLoader.State is PartialLoaderState.Partial);
+        </pre>
+    </code>
+    <p>
+        <code>ResultPartialLoader&lt;T&gt;</code> - adds another portion to the list available through the <code>Result</code> property.
+    </p>
+    <code>
+        <pre>
+            do {
+                await partialLoader.LoadAsync();
+            }
+            while(partialLoader.State is PartialLoaderState.Partial);
+            List&lt;Cat&gt; allCats = partialLoader.Result;
+        </pre>
+    </code>
+    <p>
+        <code>ChunkResultPartialLoader&lt;T&gt;</code> is a combination of the previous ones.
+    </p>
+    <code>
+        <pre>
+            do {
+                await partialLoader.LoadAsync();
+                List&lt;Cat&gt; moreCats = partialLoader.Chunk;
+            }
+            while(partialLoader.State is PartialLoaderState.Partial);
+            List&lt;Cat&gt; allCats = partialLoader.Result;
+        </pre>
+    </code>
+    <p>
+        <code>PartialLoadingJsonSerializer&lt;T&gt;</code> - Aggregates <code>PartialLoader&lt;T&gt;</code> to write a chunk of data directly to a JSON stream.
+    </p>
+    <p>
+        <code>JsonTypeStub&lt;T&gt;</code> is a helper class to keep the normal behavior of <code>JsonConverter</code>.
+    </p>
+    <h4>Example:</h4>
+    <p>
+        Processing a request for a huge number of cats in several portions.
+    </p>
+    <code>
+        <pre>
+            app.MapGet("/manyManyCatsByPortions", async(HttpContext context) =>
+            {
+                PartialLoader<Cat>
+                partialLoader;
+                string key = null!;
+
+                // Get storage via dependency injection.
+                CatsLoaderStorage loaderStorage = context.RequestServices.GetRequiredService&lt;CatsLoaderStorage&gt;();
+
+                if (!context.Request.Headers.ContainsKey(Constants.PartialLoaderSessionKey))
+                {
+                    // If this is the first request, then create a PartialLoader and start generating.
+                    partialLoader = context.RequestServices.GetRequiredService&lt;PartialLoader&lt;Cat&gt;&gt;()
+                    .SetTimeout(TimeSpan.FromMilliseconds(timeout))
+                    .SetPaging(paging)
+                    .SetDataProvider(GenerateManyCats(count, delay))
+                    ;
+                    key = Guid.NewGuid().ToString();
+                    loaderStorage.Data[key] = partialLoader;
+                }
+                else
+                {
+                    // If this is a subsequent request, then take the PartialLoader from the store and continue generating.
+                    key = context.Request.Headers[Constants.PartialLoaderSessionKey];
+                    partialLoader = loaderStorage.Data[key];
+                }
+
+                JsonConverter&lt;JsonTypeStub&lt;Cat&gt;&gt;
+                converter = new PartialLoadingJsonSerializer&lt;Cat&gt;(partialLoader);
+                JsonSerializerOptions jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = false };
+                jsonOptions.Converters.Add(converter);
+                jsonOptions.Converters.Add(new TransferJsonConverterFactory(context.RequestServices)
+                .AddTransient&lt;ICat&gt; ());
+                if (partialLoader.State !=PartialLoaderState.Full)
+                {
+                    // Add a response header with a request series ID.
+                    context.Response.Headers.Add(Constants.PartialLoaderSessionKey, key);
+                }
+                else
+                {
+                    if (key is not null)
+                    {
+                        loaderStorage.Data.Remove(key);
+                    }
+                }
+                // We get a portion of data, simultaneously writing them to the stream
+                await context.Response.WriteAsJsonAsync&lt;JsonTypeStub&lt;Cat&gt;&gt;(JsonTypeStub&lt;Cat&gt;.Instance, jsonOptions);
+            });
+</pre>
+    </code>
+</body>
+</html>

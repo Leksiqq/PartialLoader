@@ -11,7 +11,7 @@
 /// </para>
 /// </summary>
 /// <inheritdoc/>
-public class ChunksResultPartialLoader<T>: ChunksPartialLoader<T>
+public class ChunkResultPartialLoader<T>: ChunkPartialLoader<T> where T : class
 {
     private readonly List<T> _result = new();
 
@@ -46,10 +46,7 @@ public class ChunksResultPartialLoader<T>: ChunksPartialLoader<T>
     /// <inheritdoc/>
     public override async Task LoadAsync()
     {
-        if (State is PartialLoaderState.New)
-        {
-            AddUtilizer(Utilizer);
-        }
+        AddUtilizer(Utilizer);
         await base.LoadAsync();
     }
 
@@ -60,10 +57,9 @@ public class ChunksResultPartialLoader<T>: ChunksPartialLoader<T>
         _result.Clear();
     }
 
-    private T Utilizer(T item)
+    private void Utilizer(T item)
     {
         _result.Add(item);
-        return item;
     }
 
 }
