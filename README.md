@@ -1,11 +1,4 @@
-# PartialLoader
-Библиотека классов для загрузки больших данных по частям.
-
-[In English](#in-english)
-
-## 
-
-## In English
-A class library for issuing big data in parts.
-
-The division is under construction.
+## PartialLoader
+[in English](https://partialloader.sourceforge.io/index_en.html)
+Библиотека предназначена для выполнения загрузки большого количества объектов из источника порциями. Размер порции ограничен таймаутом и/или фиксированным размером. 
+[Дальше...](https://partialloader.sourceforge.io/)
