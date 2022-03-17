@@ -15,8 +15,6 @@ namespace Net.Leksi.PartialLoader;
 public class PartialLoadingJsonSerializer<T> : JsonConverter<JsonTypeStub<T>> where T : class
 {
     private readonly PartialLoader<T> _partialLoader;
-    private Utf8JsonWriter _writer = null!;
-    private JsonSerializerOptions _jsonOptions = null!;
 
     /// <summary>
     /// <para xml:lang="ru">
@@ -66,14 +64,12 @@ public class PartialLoadingJsonSerializer<T> : JsonConverter<JsonTypeStub<T>> wh
     /// <inheritdoc/>
     public override async void Write(Utf8JsonWriter writer, JsonTypeStub<T> value, JsonSerializerOptions options)
     {
-        _writer = writer;
-        _jsonOptions = options;
         if (_partialLoader.State is not PartialLoaderState.New && _partialLoader.State is not PartialLoaderState.Partial)
         {
             throw new InvalidOperationException($"Expected State: {PartialLoaderState.New} or {PartialLoaderState.Partial}, present: {_partialLoader.State}");
         }
 
-        _partialLoader.AddUtilizer(Utilizer);
+        _partialLoader.AddUtilizer(item => JsonSerializer.Serialize(writer, item, item.GetType(), options));
         writer.WriteStartArray();
         try
         {
@@ -92,9 +88,5 @@ public class PartialLoadingJsonSerializer<T> : JsonConverter<JsonTypeStub<T>> wh
         writer.WriteEndArray();
     }
 
-    private void Utilizer(T item)
-    {
-        JsonSerializer.Serialize(_writer, item, item.GetType(), _jsonOptions);
-    }
 
 }
