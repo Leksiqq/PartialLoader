@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Text.Json;
 
 namespace Net.Leksi.PartialLoader;
 
@@ -36,11 +37,13 @@ public class PartialLoader<T> where T: class
     private ConcurrentQueue<T> _queue = new();
     private Task _loadTask = Task.CompletedTask;
     private IAsyncEnumerable<T>? _dataProvider = null;
-    private ManualResetEventSlim _manualReset = new ManualResetEventSlim();
+    private ManualResetEventSlim _manualReset = new();
     private CancellationTokenSource? _cancellationTokenSource = null;
     DateTimeOffset _start;
     int _count;
     private readonly List<Action<T>> _utilizers = new();
+    private readonly object _lock = new();
+    private PartialLoaderState _state = PartialLoaderState.New;
 
 
 
@@ -52,7 +55,23 @@ public class PartialLoader<T> where T: class
     /// A property that describes the current state of the object. <see cref="PartialLoaderState"/>
     /// </para> 
     /// </summary>
-    public PartialLoaderState State { get; private set; } = PartialLoaderState.New;
+    public PartialLoaderState State 
+    {
+        get 
+        {
+            lock (_lock)
+            {
+                return _state;
+            }
+        }
+        private set 
+        {
+            lock (_lock)
+            {
+                _state = value;
+            }
+        }
+    }
 
     /// <summary>
     /// <para xml:lang="ru">
@@ -456,10 +475,7 @@ public class PartialLoader<T> where T: class
             }
         }).ContinueWith(_ =>
         {
-            if (!_cancellationTokenSource.Token.IsCancellationRequested)
-            {
-                _manualReset.Set();
-            }
+            _manualReset.Set();
         });
     }
 
@@ -470,20 +486,23 @@ public class PartialLoader<T> where T: class
 
         while (!_loadTask.IsCompleted)
         {
-            TimeSpan limeLeft = _timeout.Ticks <= 0 ?
+            TimeSpan timeLeft = _timeout.Ticks <= 0 ?
                 TimeSpan.MaxValue : _timeout - (DateTimeOffset.Now - _start);
-            if (limeLeft == TimeSpan.MaxValue || limeLeft.TotalMilliseconds > 0)
+            if (timeLeft == TimeSpan.MaxValue || timeLeft.TotalMilliseconds > 0)
             {
                 try
                 {
-                    if (limeLeft == TimeSpan.MaxValue)
+                    await Task.Run(() =>
                     {
-                        _manualReset.Wait(_cancellationTokenSource!.Token);
-                    }
-                    else
-                    {
-                        _manualReset.Wait(limeLeft, _cancellationTokenSource!.Token);
-                    }
+                        if (timeLeft == TimeSpan.MaxValue)
+                        {
+                            _manualReset.Wait(_cancellationTokenSource!.Token);
+                        }
+                        else
+                        {
+                            _manualReset.Wait(timeLeft, _cancellationTokenSource!.Token);
+                        }
+                    }).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -534,6 +553,11 @@ public class PartialLoader<T> where T: class
 
     private bool UtilizeAndPossiblySetPartialStateAndReturn()
     {
+        if (_timeout.Ticks > 0 && (_timeout - (DateTimeOffset.Now - _start)).Ticks <= 0)
+        {
+            State = PartialLoaderState.Partial;
+            return true;
+        }
         while (_queue.TryDequeue(out T? item))
         {
             if (item is not null)

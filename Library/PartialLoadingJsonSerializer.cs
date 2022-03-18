@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Collections.Concurrent;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Net.Leksi.PartialLoader;
@@ -15,6 +16,8 @@ namespace Net.Leksi.PartialLoader;
 public class PartialLoadingJsonSerializer<T> : JsonConverter<JsonTypeStub<T>> where T : class
 {
     private readonly PartialLoader<T> _partialLoader;
+    private ConcurrentQueue<T> _queue = new();
+    private ManualResetEventSlim _manualReset = new();
 
     /// <summary>
     /// <para xml:lang="ru">
@@ -62,18 +65,48 @@ public class PartialLoadingJsonSerializer<T> : JsonConverter<JsonTypeStub<T>> wh
     }
 
     /// <inheritdoc/>
-    public override async void Write(Utf8JsonWriter writer, JsonTypeStub<T> value, JsonSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, JsonTypeStub<T> value, JsonSerializerOptions options)
     {
+
         if (_partialLoader.State is not PartialLoaderState.New && _partialLoader.State is not PartialLoaderState.Partial)
         {
             throw new InvalidOperationException($"Expected State: {PartialLoaderState.New} or {PartialLoaderState.Partial}, present: {_partialLoader.State}");
         }
 
-        _partialLoader.AddUtilizer(item => JsonSerializer.Serialize(writer, item, item.GetType(), options));
+        _queue.Clear();
+        _manualReset.Reset();
+
+        _partialLoader.AddUtilizer(Utilizer);
+
+        int count = 0;
         writer.WriteStartArray();
         try
         {
-            await _partialLoader.LoadAsync();
+            bool running = true;
+            Task t = _partialLoader.LoadAsync().ContinueWith(t1 => 
+            {
+                running = false;
+                _manualReset.Set();
+            });
+            while (running)
+            {
+                try
+                {
+                    _manualReset.Wait(_partialLoader.CancellationToken);
+                    _manualReset.Reset();
+                    while (_queue.TryDequeue(out T? item))
+                    {
+                        count++;
+                        JsonSerializer.Serialize(writer, item, item!.GetType(), options);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    t.Wait();
+                    throw;
+                }
+            }
+            t.Wait();
         }
         catch (Exception)
         {
@@ -86,6 +119,12 @@ public class PartialLoadingJsonSerializer<T> : JsonConverter<JsonTypeStub<T>> wh
             writer.WriteNullValue();
         }
         writer.WriteEndArray();
+    }
+
+    private void Utilizer(T item)
+    {
+        _queue.Enqueue(item);
+        _manualReset.Set();
     }
 
 

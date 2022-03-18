@@ -15,23 +15,23 @@ namespace BigCatsDataServer
 
         private const long MilliSecondTicks = 10000L;
 
-       /// <summary>
-       ///  Параметризованный генератор кошек.
-       /// </summary>
-       /// <param name="count">Количество кошек, которое хотим получить.</param>
-       /// <param name="delay">Время в миллисекундах, требуемое для генерации одной кошки.</param>
-       /// <returns></returns>
+        /// <summary>
+        ///  Параметризованный генератор кошек.
+        /// </summary>
+        /// <param name="count">Количество кошек, которое хотим получить.</param>
+        /// <param name="delay">Время в миллисекундах, требуемое для генерации одной кошки.</param>
+        /// <returns></returns>
         public static async IAsyncEnumerable<Cat> GenerateManyCats(int count, double delay)
         {
             Random random = new Random();
 
             for (int i = 0; i < count; i++)
             {
-                yield return await Task.Run(() => 
+                if (delay > 0)
                 {
-                    if (delay > 0)
+                    // Если задали ненулевой delay, имитируем бурную деятельность продолжительностью примерно delay миллисекунд.
+                    await Task.Run(() =>
                     {
-                        // Если задали ненулевой delay, имитируем бурную деятельность продолжительностью примерно delay миллисекунд.
                         int j = 0;
                         DateTimeOffset start = DateTimeOffset.Now;
                         while (true)
@@ -42,9 +42,9 @@ namespace BigCatsDataServer
                                 break;
                             }
                         }
-                    }
-                    return new Cat { Name = $"{CatNamePrefix}{i + 1}" }; 
-                });
+                    }).ConfigureAwait(false);
+                }
+                yield return new Cat { Name = $"{CatNamePrefix}{i + 1}" };
             }
             yield break;
         }
@@ -59,7 +59,7 @@ namespace BigCatsDataServer
         public static async Task GetCats(HttpContext httpContext, int count, double delay)
         {
             List<Cat> cats = new();
-            await foreach(Cat cat in GenerateManyCats(count, delay).ConfigureAwait(false))
+            await foreach (Cat cat in GenerateManyCats(count, delay).ConfigureAwait(false))
             {
                 cats.Add(cat);
             }
@@ -106,7 +106,7 @@ namespace BigCatsDataServer
                     .SetPaging(paging)
                     .SetDataProvider(GenerateManyCats(count, delay))
                     ;
-            } 
+            }
             else
             {
                 // Если это последующий запрос, то берём PartialLoader из хранилища и продолжаем генерацию.
@@ -118,10 +118,10 @@ namespace BigCatsDataServer
             // Добавляем заголовок ответа, сигнализирующий, последняя это партия или нет.
             context.Response.Headers.Add(Constants.PartialLoaderStateHeaderName, partialLoader.State.ToString());
 
-            if(partialLoader.State == PartialLoaderState.Partial)
+            if (partialLoader.State == PartialLoaderState.Partial)
             {
                 // Если партия не последняя, 
-                if(key is null)
+                if (key is null)
                 {
                     // Если партия первая, придумываем идентификатор серии запросов и помещаем PartialLoader в хранилище.
                     key = Guid.NewGuid().ToString();
@@ -170,6 +170,11 @@ namespace BigCatsDataServer
         /// <returns></returns>
         public static async Task GetCatsJson(HttpContext context, int count, int timeout, int paging, double delay)
         {
+            Task[] tasks = new Task[100];
+            for (int i = 0; i < tasks.Length; i++)
+            {
+                tasks[i] = Task.Delay(200);
+            }
             PartialLoader<Cat> partialLoader;
             string key = null!;
 
@@ -196,6 +201,7 @@ namespace BigCatsDataServer
 
             JsonConverter<JsonTypeStub<Cat>> converter = new PartialLoadingJsonSerializer<Cat>(partialLoader);
             JsonSerializerOptions jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = false };
+            //jsonOptions.Converters.Add(partialLoader);
             jsonOptions.Converters.Add(converter);
             jsonOptions.Converters.Add(new TransferJsonConverterFactory(context.RequestServices)
                 .AddTransient<ICat>());
@@ -214,7 +220,8 @@ namespace BigCatsDataServer
                 }
             }
             // Получаем порцию данных, одновременно записывая их в поток
-            await context.Response.WriteAsJsonAsync<JsonTypeStub<Cat>>(JsonTypeStub<Cat>.Instance, jsonOptions);
+            await context.Response.WriteAsJsonAsync<JsonTypeStub<Cat>>(JsonTypeStub<Cat>.Instance, jsonOptions).ConfigureAwait(false);
+            await Task.WhenAll(tasks).ConfigureAwait(false);
 
         }
     }
