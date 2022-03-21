@@ -420,7 +420,7 @@ public class PartialLoader<T> where T: class
     /// </summary>
     public virtual void Reset()
     {
-        if (_cancellationTokenSource is not null)
+        if (_cancellationTokenSource is { })
         {
             if (!_loadTask.IsCompleted)
             {
@@ -560,7 +560,7 @@ public class PartialLoader<T> where T: class
         }
         while (_queue.TryDequeue(out T? item))
         {
-            if (item is not null)
+            if (item is { })
             {
                 foreach (Action<T> utilizer in _utilizers)
                 {

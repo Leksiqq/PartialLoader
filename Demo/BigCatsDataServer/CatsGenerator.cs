@@ -133,7 +133,7 @@ namespace BigCatsDataServer
             else
             {
                 // Если партия последняя, удаляем PartialLoader из хранилища.
-                if (key is not null)
+                if (key is { })
                 {
                     loaderStorage.Data.Remove(key);
                 }
@@ -214,7 +214,7 @@ namespace BigCatsDataServer
             }
             else
             {
-                if (key is not null)
+                if (key is { })
                 {
                     loaderStorage.Data.Remove(key);
                 }

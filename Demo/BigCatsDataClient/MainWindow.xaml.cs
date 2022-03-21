@@ -276,7 +276,7 @@ namespace BigCatsDataClient
                 // Кошки приехали, ждём на случай, если таблицы не дочистились
                 await clearOp;
 
-                while (response is not null && response.StatusCode == System.Net.HttpStatusCode.OK && IsDataLoading)
+                while (response is { } && response.StatusCode == System.Net.HttpStatusCode.OK && IsDataLoading)
                 {
                     // Обрабатываем данные в Dispatcher, чтобы не влезть в UI из левого потока.
                     await Dispatcher.BeginInvoke(async () =>
