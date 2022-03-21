@@ -180,7 +180,6 @@ public class TestPartialLoader
                 break;
         }
     }
-
     private async Task RunCancelation(TestCancelationCase testCancelationCase, int timeoutMs = -1, int paging = 4)
     {
         const int count = 1001;
@@ -376,7 +375,7 @@ public class TestPartialLoader
         deserializer.AddTransient<Cat>();
         deserializer.UseEndOfDataNull = true;
 
-        jsonOptionsSerialize.Converters.Add(new PartialLoadingJsonSerializer<Cat>(_partialLoader));
+        jsonOptionsSerialize.Converters.Add(new PartialLoadingJsonSerializer<Cat>());
         jsonOptionsDeserialize.Converters.Add(deserializer);
         _partialLoader.SetDataProvider(CatsGenerator.GenerateManyCats(count, delay))
             .SetTimeout(TimeSpan.FromMilliseconds(timeoutMs))
@@ -396,7 +395,7 @@ public class TestPartialLoader
                 });
             }
             MemoryStream memoryStream = new MemoryStream();
-            await JsonSerializer.SerializeAsync(memoryStream, JsonTypeStub<Cat>.Instance, jsonOptionsSerialize);
+            await JsonSerializer.SerializeAsync(memoryStream, _partialLoader, jsonOptionsSerialize);
 
             memoryStream.Position = 0;
             using var reader = new StreamReader(memoryStream);

@@ -199,7 +199,7 @@ namespace BigCatsDataServer
                 partialLoader = loaderStorage.Data[key];
             }
 
-            JsonConverter<JsonTypeStub<Cat>> converter = new PartialLoadingJsonSerializer<Cat>(partialLoader);
+            JsonConverter<PartialLoader<Cat>> converter = new PartialLoadingJsonSerializer<Cat>();
             JsonSerializerOptions jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = false };
             //jsonOptions.Converters.Add(partialLoader);
             jsonOptions.Converters.Add(converter);
@@ -220,7 +220,7 @@ namespace BigCatsDataServer
                 }
             }
             // Получаем порцию данных, одновременно записывая их в поток
-            await context.Response.WriteAsJsonAsync<JsonTypeStub<Cat>>(JsonTypeStub<Cat>.Instance, jsonOptions).ConfigureAwait(false);
+            await context.Response.WriteAsJsonAsync(partialLoader, jsonOptions).ConfigureAwait(false);
             await Task.WhenAll(tasks).ConfigureAwait(false);
 
         }

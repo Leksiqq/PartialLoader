@@ -133,10 +133,7 @@
         </pre>
     </code>
     <p>
-        <code>PartialLoadingJsonSerializer&lt;T&gt;</code> - Aggregates <code>PartialLoader&lt;T&gt;</code> to write a chunk of data directly to a JSON stream.
-    </p>
-    <p>
-        <code>JsonTypeStub&lt;T&gt;</code> is a helper class to keep the normal behavior of <code>JsonConverter</code>.
+        <code>PartialLoadingJsonSerializer&lt;T&gt;</code> - uses <code>PartialLoader&lt;T&gt;</code> to write a chunk of data directly to a JSON stream.
     </p>
     <h4>Example:</h4>
     <p>
@@ -146,8 +143,7 @@
         <pre>
             app.MapGet("/manyManyCatsByPortions", async(HttpContext context) =>
             {
-                PartialLoader<Cat>
-                partialLoader;
+                PartialLoader<Cat> partialLoader;
                 string key = null!;
 
                 // Get storage via dependency injection.
@@ -157,10 +153,10 @@
                 {
                     // If this is the first request, then create a PartialLoader and start generating.
                     partialLoader = context.RequestServices.GetRequiredService&lt;PartialLoader&lt;Cat&gt;&gt;()
-                    .SetTimeout(TimeSpan.FromMilliseconds(timeout))
-                    .SetPaging(paging)
-                    .SetDataProvider(GenerateManyCats(count, delay))
-                    ;
+                        .SetTimeout(TimeSpan.FromMilliseconds(timeout))
+                        .SetPaging(paging)
+                        .SetDataProvider(GenerateManyCats(count, delay))
+                        ;
                     key = Guid.NewGuid().ToString();
                     loaderStorage.Data[key] = partialLoader;
                 }
@@ -171,12 +167,12 @@
                     partialLoader = loaderStorage.Data[key];
                 }
 
-                JsonConverter&lt;JsonTypeStub&lt;Cat&gt;&gt;
-                converter = new PartialLoadingJsonSerializer&lt;Cat&gt;(partialLoader);
+                JsonConverter&lt;PartialLoader&lt;Cat&gt;&gt;
+                converter = new PartialLoadingJsonSerializer&lt;Cat&gt;();
                 JsonSerializerOptions jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = false };
                 jsonOptions.Converters.Add(converter);
                 jsonOptions.Converters.Add(new TransferJsonConverterFactory(context.RequestServices)
-                .AddTransient&lt;ICat&gt; ());
+                    .AddTransient&lt;ICat&gt; ());
                 if (partialLoader.State !=PartialLoaderState.Full)
                 {
                     // Add a response header with a request series ID.
@@ -190,9 +186,9 @@
                     }
                 }
                 // We get a portion of data, simultaneously writing them to the stream
-                await context.Response.WriteAsJsonAsync&lt;JsonTypeStub&lt;Cat&gt;&gt;(JsonTypeStub&lt;Cat&gt;.Instance, jsonOptions);
+                await context.Response.WriteAsJsonAsync(PartialLoader&lt;Cat&gt;.Instance, jsonOptions);
             });
-</pre>
+        </pre>
     </code>
 </body>
 </html>
