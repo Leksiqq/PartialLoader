@@ -132,9 +132,6 @@
             List&lt;Cat&gt; allCats = partialLoader.Result;
         </pre>
     </code>
-    <p>
-        <code>PartialLoadingJsonSerializer&lt;T&gt;</code> - использует <code>PartialLoader&lt;T&gt;</code> для записи порции данных непосредственно в поток JSON.
-    </p>
 
     <h4>Пример:</h4>
     <p>
@@ -148,16 +145,17 @@
                 string key = null!;
 
                 // Получаем хранилище через механизм внедрения зависимостей.
-                CatsLoaderStorage loaderStorage = context.RequestServices.GetRequiredService&lt;CatsLoaderStorage&gt;();
+                CatsLoaderStorage loaderStorage = context.RequestServices.GetRequiredService<CatsLoaderStorage>();
 
                 if (!context.Request.Headers.ContainsKey(Constants.PartialLoaderSessionKey))
                 {
-                // Если это первый запрос, то создаём PartialLoader и стартуем генерацию.
-                    partialLoader = context.RequestServices.GetRequiredService&lt;PartialLoader&lt;Cat&gt;&gt;()
+                    // Если это первый запрос, то создаём PartialLoader и стартуем генерацию.
+                    partialLoader = context.RequestServices.GetRequiredService<PartialLoader<Cat>>()
                         .SetTimeout(TimeSpan.FromMilliseconds(timeout))
                         .SetPaging(paging)
                         .SetDataProvider(GenerateManyCats(count, delay))
-                        ;
+                        .SetIsNullEnding(true)
+                    ;
                     key = Guid.NewGuid().ToString();
                     loaderStorage.Data[key] = partialLoader;
                 }
@@ -168,26 +166,24 @@
                     partialLoader = loaderStorage.Data[key];
                 }
 
-                JsonConverter&lt;PartialLoader&lt;Cat&gt;&gt;
-                converter = new PartialLoadingJsonSerializer&lt;Cat&gt;();
                 JsonSerializerOptions jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = false };
-                jsonOptions.Converters.Add(converter);
                 jsonOptions.Converters.Add(new TransferJsonConverterFactory(context.RequestServices)
-                .AddTransient&lt;ICat&gt; ());
-                if (partialLoader.State !=PartialLoaderState.Full)
+                    .AddTransient<ICat>());
+
+                // Добавляем заголовок ответа с идентификатором серии запросов.
+                context.Response.Headers.Add(Constants.PartialLoaderSessionKey, key);
+
+                // Получаем порцию данных, одновременно записывая их в поток
+                await context.Response.WriteAsJsonAsync(partialLoader, jsonOptions).ConfigureAwait(false);
+
+                if (partialLoader.State is PartialLoaderState.Full)
                 {
-                    // Добавляем заголовок ответа с идентификатором серии запросов.
-                    context.Response.Headers.Add(Constants.PartialLoaderSessionKey, key);
-                }
-                else
-                {
-                    if (key is {})
+                    if (key is { })
                     {
                         loaderStorage.Data.Remove(key);
                     }
                 }
-                // Получаем порцию данных, одновременно записывая их в поток
-                await context.Response.WriteAsJsonAsync(partialLoader, jsonOptions);
+
             });
         </pre>
     </code>

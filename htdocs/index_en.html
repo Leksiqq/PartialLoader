@@ -132,18 +132,15 @@
             List&lt;Cat&gt; allCats = partialLoader.Result;
         </pre>
     </code>
-    <p>
-        <code>PartialLoadingJsonSerializer&lt;T&gt;</code> - uses <code>PartialLoader&lt;T&gt;</code> to write a chunk of data directly to a JSON stream.
-    </p>
     <h4>Example:</h4>
     <p>
         Processing a request for a huge number of cats in several portions.
     </p>
     <code>
         <pre>
-            app.MapGet("/manyManyCatsByPortions", async(HttpContext context) =>
+            app.MapGet("/manyManyCatsByPortions",  async (HttpContext context) =>
             {
-                PartialLoader<Cat> partialLoader;
+                PartialLoader&lt;Cat&gt; partialLoader;
                 string key = null!;
 
                 // Get storage via dependency injection.
@@ -156,7 +153,8 @@
                         .SetTimeout(TimeSpan.FromMilliseconds(timeout))
                         .SetPaging(paging)
                         .SetDataProvider(GenerateManyCats(count, delay))
-                        ;
+                        .SetIsNullEnding(true)
+                    ;
                     key = Guid.NewGuid().ToString();
                     loaderStorage.Data[key] = partialLoader;
                 }
@@ -167,26 +165,24 @@
                     partialLoader = loaderStorage.Data[key];
                 }
 
-                JsonConverter&lt;PartialLoader&lt;Cat&gt;&gt;
-                converter = new PartialLoadingJsonSerializer&lt;Cat&gt;();
                 JsonSerializerOptions jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = false };
-                jsonOptions.Converters.Add(converter);
                 jsonOptions.Converters.Add(new TransferJsonConverterFactory(context.RequestServices)
-                    .AddTransient&lt;ICat&gt; ());
-                if (partialLoader.State !=PartialLoaderState.Full)
+                    .AddTransient&lt;ICat&gt;());
+
+                // Add a response header with a request series ID.
+                context.Response.Headers.Add(Constants.PartialLoaderSessionKey, key);
+
+                // We get a portion of data, simultaneously writing them to the stream
+                await context.Response.WriteAsJsonAsync(partialLoader, jsonOptions).ConfigureAwait(false);
+
+                if (partialLoader.State is PartialLoaderState.Full)
                 {
-                    // Add a response header with a request series ID.
-                    context.Response.Headers.Add(Constants.PartialLoaderSessionKey, key);
-                }
-                else
-                {
-                    if (key is {})
+                    if (key is { })
                     {
                         loaderStorage.Data.Remove(key);
                     }
                 }
-                // We get a portion of data, simultaneously writing them to the stream
-                await context.Response.WriteAsJsonAsync(PartialLoader&lt;Cat&gt;.Instance, jsonOptions);
+
             });
         </pre>
     </code>
