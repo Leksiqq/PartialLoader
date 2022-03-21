@@ -332,6 +332,7 @@ namespace BigCatsDataClient
                     }
                     // Ждём, когда UI остановит часики
                     await elapsedOp;
+                    MessageBox.Show(Cats.Count.ToString());
                 });
                 if (response.StatusCode != System.Net.HttpStatusCode.OK && response.StatusCode != System.Net.HttpStatusCode.NoContent)
                 {

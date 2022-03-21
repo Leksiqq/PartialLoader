@@ -29,7 +29,7 @@ namespace Net.Leksi.PartialLoader;
 /// <para xml:lang="ru">Тип загружаемых объектов</para>
 /// <para xml:lang="en">Type of loaded objects</para>
 /// </typeparam>
-public class PartialLoader<T> where T: class
+public class PartialLoader<T>: IAsyncEnumerable<T> where T: class
 {
     private TimeSpan _timeout = TimeSpan.Zero;
     private int _paging = 0;
@@ -44,6 +44,7 @@ public class PartialLoader<T> where T: class
     private readonly List<Action<T>> _utilizers = new();
     private readonly object _lock = new();
     private PartialLoaderState _state = PartialLoaderState.New;
+    private bool _isNullEnding = false;
 
 
 
@@ -166,6 +167,68 @@ public class PartialLoader<T> where T: class
         {
             SetCancellationToken(value);
         }
+    }
+
+    /// <summary>
+    /// <para xml:lang="ru">
+    /// Свойство, описывающее будет ли последний элемент последней партии иметь ссылку null
+    /// </para>
+    /// <para xml:lang="en">
+    /// Property describing whether the last element of the last batch will have a null reference
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <para xml:lang="ru">
+    /// Выбрасывается при вызове в состоянии объекта, оличающемся от <see cref="PartialLoaderState.New"/>
+    /// </para>
+    /// <para xml:lang="en">
+    /// Thrown when called in an object state other than <see cref="PartialLoaderState.New"/> 
+    /// </para> 
+    /// </exception>
+    public bool IsNullEnding
+    {
+        get
+        {
+            return _isNullEnding;
+        }
+        set
+        {
+            SetIsNullEnding(value);
+        }
+    }
+
+    /// <summary>
+    /// <para xml:lang="ru">
+    /// Метод, устанавливающий свойство, описывающее будет ли последний элемент последней партии иметь ссылку null
+    /// </para>
+    /// <para xml:lang="en">
+    /// Method that sets a property that describes whether the last element of the last batch will have a null reference
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <para xml:lang="ru">
+    /// Выбрасывается при вызове в состоянии объекта, оличающемся от <see cref="PartialLoaderState.New"/>
+    /// </para>
+    /// <para xml:lang="en">
+    /// Thrown when called in an object state other than <see cref="PartialLoaderState.New"/> 
+    /// </para> 
+    /// </exception>
+    /// <returns><see cref="PartialLoader{T}"/>
+    /// <para xml:lang="ru">
+    /// Возвращает сам объект для Flow-стиля
+    /// </para>
+    /// <para xml:lang="en">
+    /// Returns the object itself for the Flow style
+    /// </para>
+    /// </returns>
+    public PartialLoader<T> SetIsNullEnding(bool isNullEnding)
+    {
+        if (State is not PartialLoaderState.New)
+        {
+            throw new InvalidOperationException($"Expected State: {PartialLoaderState.New}, present: {State}");
+        }
+        _isNullEnding = isNullEnding;
+        return this;
     }
 
     /// <summary>
@@ -377,6 +440,14 @@ public class PartialLoader<T> where T: class
     /// Task. <see cref="Task"/>
     /// </para>
     /// </returns>
+    /// <exception cref="ArgumentNullException">
+    /// <para xml:lang="ru">
+    /// Выбрасывается, если не установлен поставщик данных
+    /// </para>
+    /// <para xml:lang="en">
+    /// Thrown if no data provider is set
+    /// </para> 
+    /// </exception>
     /// <exception cref="InvalidOperationException">
     /// <para xml:lang="ru">
     /// Выбрасывается при вызове в состоянии объекта, оличающемся от
@@ -406,8 +477,69 @@ public class PartialLoader<T> where T: class
         {
             State = PartialLoaderState.Continued;
         }
-        await ExecuteAsync();
+        await foreach (T item in ExecuteAsync()) { }
         _utilizers.Clear();
+    }
+
+    /// <summary>
+    /// <pre xml:lang="ru">
+    /// Реализация <see cref="IAsyncEnumerable{T}"/>
+    /// </pre>
+    /// <pre xml:lang="en">
+    /// Implementation <see cref="IAsyncEnumerable{T}"/>
+    /// </pre> 
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns>
+    /// <pre xml:lang="ru">
+    /// <see cref="IAsyncEnumerator{T?}"/> - Перечислитель для асинхронного перебора коллекции
+    /// </pre>
+    /// <pre xml:lang="en">
+    /// <see cref="IAsyncEnumerator{T?}"/> - Enumerator for asynchronous collection iteration
+    /// </pre>
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    /// <para xml:lang="ru">
+    /// Выбрасывается, если не установлен поставщик данных
+    /// </para>
+    /// <para xml:lang="en">
+    /// Thrown if no data provider is set
+    /// </para> 
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// <para xml:lang="ru">
+    /// Выбрасывается при вызове в состоянии объекта, оличающемся от
+    /// <see cref="PartialLoaderState.New"/> и <see cref="PartialLoaderState.Partial"/>
+    /// </para>
+    /// <para xml:lang="en">
+    /// Thrown when called in an object state other than
+    /// <see cref="PartialLoaderState.New"/> and <see cref="PartialLoaderState.Partial"/>
+    /// </para>    
+    /// </exception>
+    public IAsyncEnumerator<T?> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+    {
+        if (_dataProvider is null)
+        {
+            throw new ArgumentNullException("dataProvider");
+        }
+        if (State is not PartialLoaderState.New && State is not PartialLoaderState.Partial)
+        {
+            throw new InvalidOperationException($"Expected State: {PartialLoaderState.New} or {PartialLoaderState.Partial}, present: {State}");
+        }
+        if (State is PartialLoaderState.New)
+        {
+            if(cancellationToken != default)
+            {
+                SetCancellationToken(cancellationToken);
+            }
+            State = PartialLoaderState.Started;
+            PrepareToExecute();
+        }
+        else
+        {
+            State = PartialLoaderState.Continued;
+        }
+        return ExecuteAsync().GetAsyncEnumerator();
     }
 
     /// <summary>
@@ -479,12 +611,14 @@ public class PartialLoader<T> where T: class
         });
     }
 
-    private async Task ExecuteAsync()
+    private async IAsyncEnumerable<T?> ExecuteAsync()
     {
         _start = DateTimeOffset.Now;
         _count = 0;
 
-        while (!_loadTask.IsCompleted)
+        T? lastItem = null;
+
+        do
         {
             TimeSpan timeLeft = _timeout.Ticks <= 0 ?
                 TimeSpan.MaxValue : _timeout - (DateTimeOffset.Now - _start);
@@ -512,11 +646,36 @@ public class PartialLoader<T> where T: class
                 {
                     await _loadTask.ConfigureAwait(false);
                     State = PartialLoaderState.Canceled;
-                    return;
+                    break;
                 }
-                if (UtilizeAndPossiblySetPartialStateAndReturn())
+                if (_timeout.Ticks > 0 && (_timeout - (DateTimeOffset.Now - _start)).Ticks <= 0)
                 {
-                    return;
+                    State = PartialLoaderState.Partial;
+                    break;
+                }
+                while (_queue.TryDequeue(out T? item))
+                {
+                    if (item is { })
+                    {
+                        foreach (Action<T> utilizer in _utilizers)
+                        {
+                            utilizer.Invoke(item);
+                        }
+
+                        _count++;
+
+                        if (_paging > 0 && _count >= _paging || _timeout.Ticks > 0 && (_timeout - (DateTimeOffset.Now - _start)).Ticks <= 0)
+                        {
+                            State = PartialLoaderState.Partial;
+                            lastItem = item;
+                            break;
+                        }
+                        yield return item;
+                    }
+                }
+                if(State is PartialLoaderState.Partial)
+                {
+                    break;
                 }
             }
             else
@@ -525,57 +684,38 @@ public class PartialLoader<T> where T: class
                 {
                     await _loadTask.ConfigureAwait(false);
                     State = PartialLoaderState.Canceled;
-                    return;
+                    break;
                 }
                 State = PartialLoaderState.Partial;
-                return;
+                break;
             }
             if (!_loadTask.IsCompleted)
             {
                 _manualReset.Reset();
             }
         }
-        if (UtilizeAndPossiblySetPartialStateAndReturn())
-        {
-            return;
-        }
+        while (!_loadTask.IsCompleted);
+
         if (_cancellationTokenSource!.Token.IsCancellationRequested)
         {
             State = PartialLoaderState.Canceled;
-            return;
         }
-        if (_loadTask.IsFaulted)
+        else if (_loadTask.IsFaulted)
         {
             throw _loadTask.Exception!;
         }
-        State = PartialLoaderState.Full;
-    }
-
-    private bool UtilizeAndPossiblySetPartialStateAndReturn()
-    {
-        if (_timeout.Ticks > 0 && (_timeout - (DateTimeOffset.Now - _start)).Ticks <= 0)
+        if(State is PartialLoaderState.Started || State is PartialLoaderState.Continued)
         {
-            State = PartialLoaderState.Partial;
-            return true;
-        }
-        while (_queue.TryDequeue(out T? item))
-        {
-            if (item is { })
+            State = PartialLoaderState.Full;
+            if (_isNullEnding)
             {
-                foreach (Action<T> utilizer in _utilizers)
-                {
-                    utilizer.Invoke(item);
-                }
-
-                _count++;
-
-                if (_paging > 0 && _count >= _paging || _timeout.Ticks > 0 && (_timeout - (DateTimeOffset.Now - _start)).Ticks <= 0)
-                {
-                    State = PartialLoaderState.Partial;
-                    return true;
-                }
+                yield return null;
             }
         }
-        return false;
+        if(lastItem is { })
+        {
+            yield return lastItem;
+        }
     }
+
 }

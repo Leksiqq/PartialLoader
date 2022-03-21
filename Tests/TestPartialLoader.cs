@@ -180,6 +180,34 @@ public class TestPartialLoader
                 break;
         }
     }
+
+
+    private class TestAsyncEnumerable<T> : IAsyncEnumerable<T>
+    {
+        public async IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        {
+            for(int i = 0; i < 10; i++)
+            {
+                yield return Activator.CreateInstance<T>();
+            }
+        }
+    }
+
+    [Test]
+    public void Test2()
+    {
+        TestAsyncEnumerable<Cat> catGen = new();
+        Task.Run(async () => 
+        { 
+            await foreach(Cat cat in catGen)
+            {
+                Console.WriteLine(cat);
+            }
+        }).Wait();
+    }
+
+
+
     private async Task RunCancelation(TestCancelationCase testCancelationCase, int timeoutMs = -1, int paging = 4)
     {
         const int count = 1001;
@@ -420,7 +448,7 @@ public class TestPartialLoader
                 if (paging > 0 && (timeoutMs == -1 || paging <= timeoutMs / delay))
                 {
                     // 2), 3)
-                    Assert.That(chunkCount == paging);
+                    Assert.That(chunkCount, Is.EqualTo(paging));
                 }
             }
             else
