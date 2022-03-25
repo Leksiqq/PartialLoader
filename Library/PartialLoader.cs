@@ -596,7 +596,10 @@ public class PartialLoader<T>: IAsyncEnumerable<T> where T: class
 
         _loadTask = Task.Run(async () =>
         {
-            await foreach (T item in _dataProvider!.ConfigureAwait(false))
+            await foreach (
+                T item in _dataProvider!
+                .ConfigureAwait(false)
+            )
             {
                 if (_cancellationTokenSource.Token.IsCancellationRequested)
                 {
@@ -605,9 +608,13 @@ public class PartialLoader<T>: IAsyncEnumerable<T> where T: class
                 _queue.Enqueue(item);
                 _manualReset.Set();
             }
-        }).ContinueWith(_ =>
+        }).ContinueWith(t =>
         {
             _manualReset.Set();
+            if (t.IsFaulted)
+            {
+                throw t.Exception;
+            }
         });
     }
 
