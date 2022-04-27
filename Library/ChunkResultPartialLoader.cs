@@ -2,11 +2,11 @@
 
 /// <summary>
 /// <para xml:lang="ru">
-/// Класс <see cref="PartialLoader{T}"/>, для загрузки каждой порции объектов в свойство <see cref="Chunks"/> 
+/// Класс <see cref="PartialLoader{T}"/>, для загрузки каждой порции объектов в свойство <see cref="ChunkPartialLoader{T}.Chunk"/> 
 /// и всех объектов в свойство <see cref="Result"/>
 /// </para>
 /// <para xml:lang="en">
-/// Class <see cref="PartialLoader{T}"/>, for loading each portion of objects into the property <see cref="Chunks"/>
+/// Class <see cref="PartialLoader{T}"/>, for loading each portion of objects into the property <see cref="ChunkPartialLoader{T}.Chunk"/>
 /// and all objects into property <see cref="Result"/>
 /// </para>
 /// </summary>

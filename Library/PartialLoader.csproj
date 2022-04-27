@@ -1,24 +1,31 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>net6.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		<AssemblyName>Net.Leksi.PartialLoader</AssemblyName>
+		<RootNamespace>Net.Leksi.PartialLoader</RootNamespace>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-		<PackageId>Net.Leksi.$(AssemblyName)</PackageId>
+		<PackageId>$(AssemblyName)</PackageId>
 		<Authors>Alexey leksiq Zakharov</Authors>
 		<Copyright>2022-03-10</Copyright>
 		<VersionPrefix>1.3.1</VersionPrefix>
 		<PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<Description>
-			The library is designed to load a large number of objects from the source in batches. The chunk size is limited by a timeout and/or a fixed size.
+			The library for loading a large number of objects from the source in batches. The chunk size is limited by a timeout and/or a fixed size.
 		</Description>
 		<GenerateDocumentationFile>True</GenerateDocumentationFile>
 		<RepositoryUrl>https://sourceforge.net/p/partialloader/code</RepositoryUrl>
 		<PackageTags>JSON;ASP.NET</PackageTags>
 		<PackageProjectUrl>https://partialloader.sourceforge.io/</PackageProjectUrl>
-		<RootNamespace>Net.Leksi.PartialLoader</RootNamespace>
 	</PropertyGroup>
+	<Target Name="CopyPackage" AfterTargets="Pack">
+		<Move
+		  SourceFiles="$(OutputPath)..\$(PackageId).$(PackageVersion).nupkg"
+		  DestinationFolder="F:\leksi\C#\nuget.local"
+    />
+	</Target>
 
 </Project>

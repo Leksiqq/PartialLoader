@@ -35,12 +35,13 @@ namespace BigCatsDataClient
         private int _timeout = -1;
         private int _paging = 0;
         private string _lastCommand = string.Empty;
+        private HttpClient _client = new HttpClient();
 
-        /// <summary xml:lang="ru">
-        ///     Определяет, загружаются ли в данный момент данные. 
-        ///     Также это сигнализирует, могут ли быть выполнены команды <see cref="GetAllCommand"/> и <see cref="GetChunksCommand"/>. 
-        /// </summary>
-        private bool IsDataLoading
+    /// <summary xml:lang="ru">
+    ///     Определяет, загружаются ли в данный момент данные. 
+    ///     Также это сигнализирует, могут ли быть выполнены команды <see cref="GetAllCommand"/> и <see cref="GetChunksCommand"/>. 
+    /// </summary>
+    private bool IsDataLoading
         {
             get => _isDataLoading;
             set
@@ -205,6 +206,7 @@ namespace BigCatsDataClient
 
         public MainWindow()
         {
+            _client.BaseAddress = new Uri(Server);
             GetAllCommand = new Command(async _ => await GetAllCats(), _ => !IsDataLoading);
             GetChunksCommand = new Command(async _ => await GetChunksCats(Constants.ChunksUri), _ => !IsDataLoading);
             GetJsonCommand = new Command(async _ => await GetChunksCats(Constants.JsonUri), _ => !IsDataLoading);
@@ -258,16 +260,17 @@ namespace BigCatsDataClient
                     Chunks.Clear();
                 });
 
-                using HttpClient _client = new HttpClient();
                 if (HttpTimeout <= 0)
                 {
                     HttpTimeout = _client.Timeout.TotalSeconds;
                 }
-                else
+                else if(_client.Timeout != TimeSpan.FromSeconds(HttpTimeout))
                 {
+                    _client.Dispose();
+                    _client = new HttpClient();
+                    _client.BaseAddress = new Uri(Server);
                     _client.Timeout = TimeSpan.FromSeconds(HttpTimeout);
                 }
-                _client.BaseAddress = new Uri(Server);
 
                 // Передаём запрос серверу в стиле REST
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{path}/{Count}/{Timeout}/{Paging}/{Delay.ToString().Replace(',', '.')}");
@@ -286,7 +289,7 @@ namespace BigCatsDataClient
                         try
                         {
                             await JsonSerializer.DeserializeAsync<AppendableList<ICat>>(response.Content.ReadAsStream(),
-                                    jsonOptions);
+                                    jsonOptions).ConfigureAwait(false);
                         }
                         catch(Exception ex)
                         {

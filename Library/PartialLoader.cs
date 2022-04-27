@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Text.Json;
 
 namespace Net.Leksi.PartialLoader;
 
@@ -492,10 +491,10 @@ public class PartialLoader<T>: IAsyncEnumerable<T> where T: class
     /// <param name="cancellationToken"></param>
     /// <returns>
     /// <pre xml:lang="ru">
-    /// <see cref="IAsyncEnumerator{T?}"/> - Перечислитель для асинхронного перебора коллекции
+    /// <see cref="IAsyncEnumerator{T}"/> - Перечислитель для асинхронного перебора коллекции
     /// </pre>
     /// <pre xml:lang="en">
-    /// <see cref="IAsyncEnumerator{T?}"/> - Enumerator for asynchronous collection iteration
+    /// <see cref="IAsyncEnumerator{T}"/> - Enumerator for asynchronous collection iteration
     /// </pre>
     /// </returns>
     /// <exception cref="ArgumentNullException">
@@ -516,7 +515,7 @@ public class PartialLoader<T>: IAsyncEnumerable<T> where T: class
     /// <see cref="PartialLoaderState.New"/> and <see cref="PartialLoaderState.Partial"/>
     /// </para>    
     /// </exception>
-    public IAsyncEnumerator<T?> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+    public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
         if (_dataProvider is null)
         {
@@ -574,7 +573,7 @@ public class PartialLoader<T>: IAsyncEnumerable<T> where T: class
     /// <para xml:lang="ru">
     /// Метод, прерывающий работу объекта
     /// </para>
-    /// /// <para xml:lang="en">
+    /// <para xml:lang="en">
     /// Method that interrupts the operation of the object
     /// </para>
     /// </summary>
@@ -611,14 +610,14 @@ public class PartialLoader<T>: IAsyncEnumerable<T> where T: class
         }).ContinueWith(t =>
         {
             _manualReset.Set();
-            if (t.IsFaulted)
+            if (t.IsFaulted && t.Exception is { })
             {
                 throw t.Exception;
             }
         });
     }
 
-    private async IAsyncEnumerable<T?> ExecuteAsync()
+    private async IAsyncEnumerable<T> ExecuteAsync()
     {
         _start = DateTimeOffset.Now;
         _count = 0;
@@ -716,7 +715,7 @@ public class PartialLoader<T>: IAsyncEnumerable<T> where T: class
             State = PartialLoaderState.Full;
             if (_isNullEnding)
             {
-                yield return null;
+                yield return null!;
             }
         }
         if(lastItem is { })

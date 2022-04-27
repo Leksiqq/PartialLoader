@@ -141,16 +141,16 @@
         <pre>
             app.MapGet("/manyManyCatsByPortions",  async (HttpContext context) =>
             {
-                PartialLoader<Cat> partialLoader;
+                PartialLoader&gt;Cat&lt; partialLoader;
                 string key = null!;
 
                 // Получаем хранилище через механизм внедрения зависимостей.
-                CatsLoaderStorage loaderStorage = context.RequestServices.GetRequiredService<CatsLoaderStorage>();
+                CatsLoaderStorage loaderStorage = context.RequestServices.GetRequiredService&lt;CatsLoaderStorage&gt;();
 
                 if (!context.Request.Headers.ContainsKey(Constants.PartialLoaderSessionKey))
                 {
                     // Если это первый запрос, то создаём PartialLoader и стартуем генерацию.
-                    partialLoader = context.RequestServices.GetRequiredService<PartialLoader<Cat>>()
+                    partialLoader = context.RequestServices.GetRequiredService&lt;PartialLoader&lt;Cat&gt;&gt;()
                         .SetTimeout(TimeSpan.FromMilliseconds(timeout))
                         .SetPaging(paging)
                         .SetDataProvider(GenerateManyCats(count, delay))
@@ -168,7 +168,7 @@
 
                 JsonSerializerOptions jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = false };
                 jsonOptions.Converters.Add(new TransferJsonConverterFactory(context.RequestServices)
-                    .AddTransient<ICat>());
+                    .AddTransient&gt;ICat&lt;());
 
                 // Добавляем заголовок ответа с идентификатором серии запросов.
                 context.Response.Headers.Add(Constants.PartialLoaderSessionKey, key);
